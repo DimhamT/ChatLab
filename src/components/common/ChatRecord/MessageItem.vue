@@ -74,10 +74,11 @@ const currentColor = computed(() => colorPalette[colorIndex.value])
 const avatarColor = computed(() => currentColor.value.avatar)
 const nameColor = computed(() => currentColor.value.name)
 
-// 气泡颜色（Owner 使用绿色，其他人使用灰色）
-const bubbleColor = computed(() =>
-  isOwner.value ? 'bg-green-100 dark:bg-green-900/40' : 'bg-gray-100 dark:bg-gray-800'
-)
+// 气泡颜色（Owner 使用绿色，其他人使用灰色；图片消息使用透明背景）
+const bubbleColor = computed(() => {
+  if (isImage.value || isEmoji.value) return ''
+  return isOwner.value ? 'bg-green-100 dark:bg-green-900/40' : 'bg-gray-100 dark:bg-gray-800'
+})
 
 // 显示名称（包含别名）
 const displayName = computed(() => {

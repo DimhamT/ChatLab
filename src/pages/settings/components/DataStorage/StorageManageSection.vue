@@ -454,9 +454,7 @@ defineExpose({
           <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
             {{ t('settings.storage.assetsImport.description') }}
           </p>
-          <p class="mt-1 text-xs text-gray-400">
-            路径: {{ assetsPath }}
-          </p>
+          <p class="mt-1 text-xs text-gray-400">路径: {{ assetsPath }}</p>
         </div>
         <div class="shrink-0">
           <UButton icon="i-heroicons-folder-open" variant="ghost" size="xs" @click="openAssetsDir">
@@ -493,10 +491,14 @@ defineExpose({
       <div v-if="isImportingAssets && assetsImportProgress.total > 0" class="mt-3">
         <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
           <span>{{ assetsImportProgress.current }} / {{ assetsImportProgress.total }}</span>
-          <span v-if="assetsImportProgress.currentFile" class="truncate max-w-32">{{ assetsImportProgress.currentFile }}</span>
+          <span v-if="assetsImportProgress.currentFile" class="truncate max-w-32">
+            {{ assetsImportProgress.currentFile }}
+          </span>
         </div>
         <UProgress
-          :value="assetsImportProgress.total > 0 ? (assetsImportProgress.current / assetsImportProgress.total) * 100 : 0"
+          :value="
+            assetsImportProgress.total > 0 ? (assetsImportProgress.current / assetsImportProgress.total) * 100 : 0
+          "
           size="sm"
           class="mt-1"
         />
@@ -530,7 +532,10 @@ defineExpose({
             class="w-full rounded border p-1 text-xs"
             placeholder="输入图片路径，如: images/xxx.jpg"
           />
-          <p class="mt-1 text-xs text-blue-600">asset:// URL: <code>{{ testImagePath ? 'asset://' + testImagePath : '' }}</code></p>
+          <p class="mt-1 text-xs text-blue-600">
+            asset:// URL:
+            <code>{{ testImagePath ? 'asset://' + testImagePath : '' }}</code>
+          </p>
           <img
             v-if="testImagePath"
             :src="'asset://' + testImagePath"

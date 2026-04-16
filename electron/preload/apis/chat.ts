@@ -544,8 +544,13 @@ export const mergeApi = {
   /**
    * 监听资源导入进度
    */
-  onImportAssetsProgress: (callback: (progress: { stage: string; current: number; total: number; currentFile: string }) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, progress: { stage: string; current: number; total: number; currentFile: string }) => {
+  onImportAssetsProgress: (
+    callback: (progress: { stage: string; current: number; total: number; currentFile: string }) => void
+  ) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      progress: { stage: string; current: number; total: number; currentFile: string }
+    ) => {
       callback(progress)
     }
     ipcRenderer.on('chat:importAssetsProgress', handler)

@@ -1065,9 +1065,9 @@ export function registerChatHandlers(ctx: IpcContext): void {
     }
   })
 
-/**
- * 清理临时导出文件
- */
+  /**
+   * 清理临时导出文件
+   */
   ipcMain.handle('chat:cleanupTempExportFiles', async (_, filePaths: string[]) => {
     try {
       cleanupTempExportFiles(filePaths)

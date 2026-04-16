@@ -5,7 +5,13 @@ import { checkUpdate } from './update'
 import mainIpcMain, { cleanup } from './ipcMain'
 import { initAnalytics, trackDailyActive } from './analytics'
 import { initProxy } from './network/proxy'
-import { needsLegacyMigration, migrateFromLegacyDir, ensureAppDirs, cleanupPendingDeleteDir, getAssetsDir } from './paths'
+import {
+  needsLegacyMigration,
+  migrateFromLegacyDir,
+  ensureAppDirs,
+  cleanupPendingDeleteDir,
+  getAssetsDir,
+} from './paths'
 import { migrateAllDatabases, checkMigrationNeeded } from './database/core'
 import { initLocale } from './i18n'
 

@@ -259,12 +259,23 @@ function closeImage() {
             <!-- 表情包消息 -->
             <div v-else-if="isEmoji" class="flex flex-wrap gap-1 items-center">
               <template v-for="(item, index) in emojiItems" :key="index">
-                <img
-                  v-if="emojiUrls[index] && !emojiUrls[index].startsWith('data:') && !emojiUrls[index].startsWith('<')"
-                  :src="emojiUrls[index]"
-                  class="w-6 h-6 object-contain align-middle"
-                />
-                <span v-else class="text-sm text-gray-700 dark:text-gray-200" v-html="highlightContent(item)" />
+                <span class="flex h-6 items-center justify-center">
+                  <img
+                    v-if="
+                      emojiUrls[index] &&
+                      (emojiUrls[index].startsWith('asset://') ||
+                        emojiUrls[index].startsWith('http') ||
+                        emojiUrls[index].startsWith('assets/'))
+                    "
+                    :src="emojiUrls[index]"
+                    class="w-6 h-6 object-contain shrink-0"
+                  />
+                  <span
+                    v-else
+                    class="text-sm leading-none text-gray-700 dark:text-gray-200"
+                    v-html="highlightContent(item)"
+                  />
+                </span>
               </template>
             </div>
 
@@ -302,11 +313,7 @@ function closeImage() {
         >
           ×
         </button>
-        <img
-          :src="expandedImage"
-          class="max-w-[90vw] max-h-[90vh] object-contain cursor-default"
-          @click.stop
-        />
+        <img :src="expandedImage" class="max-w-[90vw] max-h-[90vh] object-contain cursor-default" @click.stop />
       </div>
     </Teleport>
   </div>

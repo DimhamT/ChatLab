@@ -23,6 +23,7 @@ interface TimeFilter {
   startTs?: number
   endTs?: number
   memberId?: number | null // 成员筛选，null 表示全部成员
+  types?: number[] // 消息类型筛选（OR 逻辑）
 }
 
 // @ 互动关系图数据
@@ -219,7 +220,9 @@ interface MergeApi {
   importAssets: (sourcePath: string) => Promise<{ success: boolean; assetsPath?: string; error?: string }>
   getAssetsPath: () => Promise<{ assetsPath: string }>
   openAssetsDir: () => Promise<{ success: boolean; error?: string }>
-  onImportAssetsProgress: (callback: (progress: { stage: string; current: number; total: number; currentFile: string }) => void) => () => void
+  onImportAssetsProgress: (
+    callback: (progress: { stage: string; current: number; total: number; currentFile: string }) => void
+  ) => () => void
 }
 
 // AI 相关类型

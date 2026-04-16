@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * 聊天记录筛选面板
- * 支持消息ID、成员、时间范围、关键词的组合筛选
+ * 支持消息ID、成员、时间范围、类型、关键词的组合筛选
  */
 import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -23,6 +23,29 @@ const emit = defineEmits<{
   (e: 'reset'): void
 }>()
 
+const MESSAGE_TYPES = [
+  { value: -1, label: '全部' },
+  { value: 0, label: '文本' },
+  { value: 1, label: '图片' },
+  { value: 2, label: '语音' },
+  { value: 3, label: '视频' },
+  { value: 4, label: '文件' },
+  { value: 5, label: '表情包' },
+  { value: 7, label: '链接' },
+  { value: 8, label: '位置' },
+  { value: 20, label: '红包' },
+  { value: 21, label: '转账' },
+  { value: 22, label: '拍一拍' },
+  { value: 23, label: '通话' },
+  { value: 24, label: '分享' },
+  { value: 25, label: '引用' },
+  { value: 26, label: '转发' },
+  { value: 27, label: '名片' },
+  { value: 80, label: '系统' },
+  { value: 81, label: '撤回' },
+  { value: 99, label: '其他' },
+]
+
 // 本地表单数据
 const formData = ref<FilterFormData>({
   messageId: '',
@@ -30,6 +53,7 @@ const formData = ref<FilterFormData>({
   keywords: '',
   startDate: '',
   endDate: '',
+  type: -1,
 })
 
 // 同步外部 query 到表单
@@ -43,6 +67,7 @@ watch(
         keywords: query.keywords?.join(', ') || '',
         startDate: query.startTs ? dayjs.unix(query.startTs).format('YYYY-MM-DD') : '',
         endDate: query.endTs ? dayjs.unix(query.endTs).format('YYYY-MM-DD') : '',
+        type: query.types?.[0] ?? -1,
       }
     }
   },
@@ -92,6 +117,11 @@ function applyFilter() {
     query.endTs = dayjs(f.endDate).endOf('day').unix()
   }
 
+  // 类型筛选
+  if (f.type !== -1) {
+    query.types = [f.type]
+  }
+
   emit('apply', query)
 }
 
@@ -111,6 +141,7 @@ function resetFilter() {
     keywords: '',
     startDate: '',
     endDate: '',
+    type: -1,
   }
   emit('reset')
 }
@@ -118,7 +149,7 @@ function resetFilter() {
 
 <template>
   <div class="border-b border-gray-200 px-4 py-3 dark:border-gray-800">
-    <!-- 第一行：消息ID、成员、时间范围 -->
+    <!-- 第一行：消息ID、成员、类型、时间范围 -->
     <div class="flex items-center gap-3">
       <UInput
         v-model="formData.messageId"
@@ -134,6 +165,15 @@ function resetFilter() {
         class="w-28"
         disabled
       />
+      <select
+        v-model="formData.type"
+        class="h-8 w-28 rounded-md border border-gray-200 bg-white px-2 text-xs dark:border-gray-700 dark:bg-gray-800"
+        @change="applyFilter"
+      >
+        <option v-for="item in MESSAGE_TYPES" :key="item.value" :value="item.value">
+          {{ item.label }}
+        </option>
+      </select>
       <div class="flex items-center gap-2">
         <DatePicker v-model="formData.startDate" :placeholder="t('records.filter.startDate')" />
         <span class="text-xs text-gray-400">~</span>

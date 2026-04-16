@@ -90,6 +90,7 @@ export interface TimeFilter {
   startTs?: number
   endTs?: number
   memberId?: number | null // 成员筛选，null 表示全部成员
+  types?: number[] // 消息类型筛选（OR 逻辑）
 }
 
 /**
@@ -120,6 +121,13 @@ export function buildTimeFilter(
   if (filter?.memberId !== undefined && filter?.memberId !== null) {
     conditions.push(`${senderIdColumn} = ?`)
     params.push(filter.memberId)
+  }
+
+  // 消息类型筛选（OR 逻辑）
+  if (filter?.types && filter.types.length > 0) {
+    const typeConditions = filter.types.map(() => `${tableAlias || 'msg'}.type = ?`)
+    conditions.push(`(${typeConditions.join(' OR ')})`)
+    params.push(...filter.types)
   }
 
   return {

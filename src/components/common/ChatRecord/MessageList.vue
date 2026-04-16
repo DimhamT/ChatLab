@@ -104,7 +104,11 @@ const totalSize = computed(() => virtualizer.value.getTotalSize())
 // 构建筛选参数
 function buildFilterParams(query: ChatRecordQuery) {
   return {
-    filter: query.startTs || query.endTs ? { startTs: query.startTs, endTs: query.endTs } : undefined,
+    filter: {
+      startTs: query.startTs,
+      endTs: query.endTs,
+      types: query.types,
+    },
     senderId: query.memberId,
     keywords: query.keywords ? [...toRaw(query.keywords)] : undefined,
   }

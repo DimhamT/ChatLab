@@ -168,6 +168,9 @@ export interface ChatRecordQuery {
 
   /** 高亮关键词（用于 UI 高亮显示） */
   highlightKeywords?: string[]
+
+  /** 消息类型筛选（OR 逻辑） */
+  types?: number[]
 }
 
 /**

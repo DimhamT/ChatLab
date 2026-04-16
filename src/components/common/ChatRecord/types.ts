@@ -21,6 +21,8 @@ export interface FilterFormData {
   startDate: string
   /** 结束日期 */
   endDate: string
+  /** 消息类型筛选 */
+  type: number
 }
 
 /**

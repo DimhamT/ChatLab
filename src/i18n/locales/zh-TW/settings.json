@@ -175,6 +175,13 @@
       "logSafe": "日誌檔主要用於除錯，可安心清理",
       "noRecover": "所有檔案清理後無法恢復，請謹慎操作"
     },
+    "assetsImport": {
+      "title": "資源檔案匯入",
+      "description": "匯入聊天紀錄中的圖片和表情包資源，匯入後可離線查看",
+      "openFolder": "開啟目錄",
+      "importFolder": "匯入資料夾",
+      "importZip": "匯入 ZIP"
+    },
     "cache": {
       "databases": {
         "name": "聊天紀錄資料庫",

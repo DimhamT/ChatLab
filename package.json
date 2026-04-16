@@ -46,6 +46,7 @@
     "@node-rs/jieba": "^2.0.1",
     "@tanstack/vue-virtual": "^3.13.18",
     "@zumer/snapdom": "^2.0.1",
+    "adm-zip": "^0.5.17",
     "better-sqlite3": "^12.4.6",
     "echarts": "^6.0.0",
     "echarts-wordcloud": "^2.1.0",
@@ -56,7 +57,8 @@
     "markdown-it": "^14.1.0",
     "node-machine-id": "^1.1.12",
     "stream-json": "^1.9.1",
-    "vue-i18n": "^11.2.8"
+    "vue-i18n": "^11.2.8",
+    "yauzl": "^3.3.0"
   },
   "devDependencies": {
     "@electron-toolkit/tsconfig": "^1.0.1",
@@ -66,6 +68,7 @@
     "@types/better-sqlite3": "^7.6.13",
     "@types/markdown-it": "^14.1.2",
     "@types/stream-json": "^1.7.8",
+    "@types/yauzl": "^2.10.3",
     "@vitejs/plugin-vue": "^5.2.3",
     "@vue/eslint-config-prettier": "^10.2.0",
     "@vue/eslint-config-typescript": "^14.6.0",

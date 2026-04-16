@@ -31,6 +31,9 @@ export default {
     selectDirectory: '选择目录',
     selectFolder: '选择文件夹',
     selectFolderError: '选择文件夹时发生错误：',
+    selectAssetsFile: '选择资源文件',
+    selectAssetsFolder: '选择资源文件夹',
+    zipFiles: 'ZIP 压缩文件',
   },
 
   // ===== P1: 数据库迁移 =====

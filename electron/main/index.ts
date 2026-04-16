@@ -5,7 +5,7 @@ import { checkUpdate } from './update'
 import mainIpcMain, { cleanup } from './ipcMain'
 import { initAnalytics, trackDailyActive } from './analytics'
 import { initProxy } from './network/proxy'
-import { needsLegacyMigration, migrateFromLegacyDir, ensureAppDirs, cleanupPendingDeleteDir } from './paths'
+import { needsLegacyMigration, migrateFromLegacyDir, ensureAppDirs, cleanupPendingDeleteDir, getAssetsDir } from './paths'
 import { migrateAllDatabases, checkMigrationNeeded } from './database/core'
 import { initLocale } from './i18n'
 
@@ -133,6 +133,29 @@ class MainProcess {
     }
   }
 
+  // 注册资源协议（用于加载本地图片）
+  registerAssetProtocol() {
+    const assetsDir = getAssetsDir()
+
+    protocol.registerFileProtocol('asset', (request, callback) => {
+      const url = request.url.replace('asset://', '')
+      const filePath = join(assetsDir, decodeURIComponent(url))
+
+      console.log('[Asset Protocol] Request:', request.url, '-> File path:', filePath)
+
+      // 安全检查：确保文件在 assetsDir 内
+      if (!filePath.startsWith(assetsDir)) {
+        console.warn('[Asset Protocol] Blocked unsafe path:', filePath)
+        callback({ error: -6 })
+        return
+      }
+
+      callback(filePath)
+    })
+
+    console.log('[Main] Asset protocol registered for:', assetsDir)
+  }
+
   // 创建主窗口
   async createWindow() {
     // 平台差异化窗口配置
@@ -223,6 +246,9 @@ class MainProcess {
       console.log('[Main] App is ready')
       // 设置Windows应用程序用户模型id
       if (process.platform === 'win32') app.setAppUserModelId(app.getName())
+
+      // 注册资源协议（用于加载本地图片）
+      this.registerAssetProtocol()
 
       // 记录日活（用于统计操作系统版本、客户端版本，便于更好的适配客户端）
       trackDailyActive()

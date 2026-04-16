@@ -182,6 +182,119 @@ onMounted(() => {
   loadDataDir()
 })
 
+// ==================== 资源文件导入 ====================
+
+const isImportingAssets = ref(false)
+const assetsImportResult = ref<{ success: boolean; message: string } | null>(null)
+const assetsImportProgress = ref({ current: 0, total: 0, currentFile: '' })
+const assetsPath = ref('')
+const testImagePath = ref('')
+const testImageError = ref(false)
+let importProgressCleanup: (() => void) | null = null
+
+// 加载资源路径
+async function loadAssetsPath() {
+  const result = await window.mergeApi.getAssetsPath()
+  assetsPath.value = result.assetsPath
+  console.log('[StorageManageSection] Assets path:', assetsPath.value)
+}
+loadAssetsPath()
+
+async function doImport(sourcePath: string) {
+  isImportingAssets.value = true
+  assetsImportResult.value = null
+  assetsImportProgress.value = { current: 0, total: 0, currentFile: '' }
+
+  try {
+    // 监听进度
+    importProgressCleanup = window.mergeApi.onImportAssetsProgress((progress) => {
+      assetsImportProgress.value = {
+        current: progress.current,
+        total: progress.total,
+        currentFile: progress.currentFile,
+      }
+    })
+
+    // 导入资源
+    const importResult = await window.mergeApi.importAssets(sourcePath)
+    if (importResult.success) {
+      assetsImportResult.value = {
+        success: true,
+        message: `资源已成功导入到: ${importResult.assetsPath}`,
+      }
+    } else {
+      assetsImportResult.value = {
+        success: false,
+        message: importResult.error || '导入失败',
+      }
+    }
+  } catch (error) {
+    assetsImportResult.value = {
+      success: false,
+      message: error instanceof Error ? error.message : String(error),
+    }
+  } finally {
+    isImportingAssets.value = false
+    importProgressCleanup?.()
+  }
+}
+
+async function importAssetsFolder() {
+  try {
+    const selectResult = await window.mergeApi.selectAssetsFolder()
+    if (!selectResult || selectResult.error) {
+      assetsImportResult.value = {
+        success: false,
+        message: selectResult?.error || '选择文件夹失败',
+      }
+      return
+    }
+
+    if (!selectResult.folderPath) {
+      return
+    }
+
+    await doImport(selectResult.folderPath)
+  } catch (error) {
+    assetsImportResult.value = {
+      success: false,
+      message: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+async function importAssetsFile() {
+  try {
+    const selectResult = await window.mergeApi.selectAssetsFile()
+    if (!selectResult || selectResult.error) {
+      assetsImportResult.value = {
+        success: false,
+        message: selectResult?.error || '选择文件失败',
+      }
+      return
+    }
+
+    if (!selectResult.filePath) {
+      return
+    }
+
+    await doImport(selectResult.filePath)
+  } catch (error) {
+    assetsImportResult.value = {
+      success: false,
+      message: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+async function openAssetsDir() {
+  try {
+    await window.mergeApi.openAssetsDir()
+  } catch (error) {
+    console.error('打开资源目录失败:', error)
+  }
+}
+
 // 暴露刷新方法
 defineExpose({
   refresh: loadCacheInfo,
@@ -329,6 +442,105 @@ defineExpose({
       <p v-if="dataDirError" class="mt-1 text-xs text-red-500">
         {{ dataDirError }}
       </p>
+    </div>
+
+    <!-- 资源文件导入 -->
+    <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-medium text-gray-900 dark:text-white">
+            {{ t('settings.storage.assetsImport.title') }}
+          </p>
+          <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+            {{ t('settings.storage.assetsImport.description') }}
+          </p>
+          <p class="mt-1 text-xs text-gray-400">
+            路径: {{ assetsPath }}
+          </p>
+        </div>
+        <div class="shrink-0">
+          <UButton icon="i-heroicons-folder-open" variant="ghost" size="xs" @click="openAssetsDir">
+            {{ t('settings.storage.assetsImport.openFolder') }}
+          </UButton>
+        </div>
+      </div>
+
+      <div class="mt-3 flex items-center gap-2">
+        <UButton
+          size="sm"
+          variant="soft"
+          color="primary"
+          :loading="isImportingAssets"
+          :disabled="isImportingAssets"
+          @click="importAssetsFolder"
+        >
+          <UIcon name="i-heroicons-folder-open" class="mr-1 h-4 w-4" />
+          {{ t('settings.storage.assetsImport.importFolder') }}
+        </UButton>
+        <UButton
+          size="sm"
+          variant="soft"
+          color="primary"
+          :loading="isImportingAssets"
+          :disabled="isImportingAssets"
+          @click="importAssetsFile"
+        >
+          <UIcon name="i-heroicons-archive-box" class="mr-1 h-4 w-4" />
+          {{ t('settings.storage.assetsImport.importZip') }}
+        </UButton>
+      </div>
+
+      <div v-if="isImportingAssets && assetsImportProgress.total > 0" class="mt-3">
+        <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+          <span>{{ assetsImportProgress.current }} / {{ assetsImportProgress.total }}</span>
+          <span v-if="assetsImportProgress.currentFile" class="truncate max-w-32">{{ assetsImportProgress.currentFile }}</span>
+        </div>
+        <UProgress
+          :value="assetsImportProgress.total > 0 ? (assetsImportProgress.current / assetsImportProgress.total) * 100 : 0"
+          size="sm"
+          class="mt-1"
+        />
+      </div>
+
+      <div v-if="assetsImportResult" class="mt-3">
+        <div
+          class="flex items-center gap-2 rounded-lg p-3 text-xs"
+          :class="{
+            'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400': assetsImportResult.success,
+            'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400': !assetsImportResult.success,
+          }"
+        >
+          <UIcon
+            :name="assetsImportResult.success ? 'i-heroicons-check-circle' : 'i-heroicons-x-circle'"
+            class="h-4 w-4 shrink-0"
+          />
+          {{ assetsImportResult.message }}
+        </div>
+      </div>
+
+      <!-- 调试：测试 asset 协议 -->
+      <div class="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800/50 dark:bg-blue-900/20">
+        <p class="text-xs font-medium text-blue-700 dark:text-blue-400">调试：测试 asset 协议</p>
+        <p class="mt-1 text-xs text-blue-600 dark:text-blue-500">
+          如果上方路径中有 images 目录，请打开目录查看有哪些图片文件
+        </p>
+        <div class="mt-2">
+          <input
+            v-model="testImagePath"
+            class="w-full rounded border p-1 text-xs"
+            placeholder="输入图片路径，如: images/xxx.jpg"
+          />
+          <p class="mt-1 text-xs text-blue-600">asset:// URL: <code>{{ testImagePath ? 'asset://' + testImagePath : '' }}</code></p>
+          <img
+            v-if="testImagePath"
+            :src="'asset://' + testImagePath"
+            class="mt-2 max-h-32 border"
+            @error="testImageError = true"
+            @load="testImageError = false"
+          />
+          <p v-if="testImageError" class="mt-1 text-xs text-red-500">图片加载失败</p>
+        </div>
+      </div>
     </div>
 
     <!-- 提示信息 -->

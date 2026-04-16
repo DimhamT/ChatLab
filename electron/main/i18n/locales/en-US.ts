@@ -31,6 +31,9 @@ export default {
     selectDirectory: 'Select Directory',
     selectFolder: 'Select Folder',
     selectFolderError: 'Error selecting folder: ',
+    selectAssetsFile: 'Select Assets File',
+    selectAssetsFolder: 'Select Assets Folder',
+    zipFiles: 'ZIP Archives',
   },
 
   // ===== P1: Database migrations =====

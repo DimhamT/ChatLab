@@ -214,6 +214,12 @@ interface MergeApi {
   checkConflicts: (filePaths: string[]) => Promise<ConflictCheckResult>
   mergeFiles: (params: MergeParams) => Promise<MergeResult>
   clearCache: (filePath?: string) => Promise<boolean>
+  selectAssetsFolder: () => Promise<{ folderPath?: string; error?: string } | null>
+  selectAssetsFile: () => Promise<{ filePath?: string; error?: string } | null>
+  importAssets: (sourcePath: string) => Promise<{ success: boolean; assetsPath?: string; error?: string }>
+  getAssetsPath: () => Promise<{ assetsPath: string }>
+  openAssetsDir: () => Promise<{ success: boolean; error?: string }>
+  onImportAssetsProgress: (callback: (progress: { stage: string; current: number; total: number; currentFile: string }) => void) => () => void
 }
 
 // AI 相关类型

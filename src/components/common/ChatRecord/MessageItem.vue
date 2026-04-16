@@ -2,8 +2,9 @@
 /**
  * 单条消息展示组件 - 气泡样式
  * 支持 Owner 消息显示在右侧（类似聊天界面）
+ * 支持图片、表情包等多媒体消息
  */
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { ChatRecordMessage } from './types'
@@ -27,6 +28,9 @@ const emit = defineEmits<{
 }>()
 
 const sessionStore = useSessionStore()
+
+const showImageModal = ref(false)
+const expandedImage = ref<string | null>(null)
 
 // 判断当前消息是否是 Owner 发送的
 const isOwner = computed(() => {
@@ -116,6 +120,56 @@ const avatarLetter = computed(() => {
   return '?'
 })
 
+// 判断消息类型
+const isImage = computed(() => props.message.type === 1)
+const isEmoji = computed(() => props.message.type === 5)
+const isText = computed(() => props.message.type === 0)
+
+// 获取图片URL
+const imageUrl = computed(() => {
+  if (!isImage.value) return null
+  const content = props.message.content || ''
+  console.log('[MessageItem] Image content:', content)
+  if (content.startsWith('assets/') || content.startsWith('/assets/')) {
+    const url = 'asset://' + content.replace(/^\/?assets\//, '')
+    console.log('[MessageItem] Generated asset URL:', url)
+    return url
+  }
+  console.log('[MessageItem] Using content as-is:', content)
+  return content
+})
+
+// 解析表情包内容
+const emojiItems = computed(() => {
+  if (!isEmoji.value) return []
+  try {
+    const content = props.message.content || ''
+    if (content.startsWith('[')) {
+      return JSON.parse(content)
+    }
+    return [content]
+  } catch {
+    return [props.message.content || '']
+  }
+})
+
+// 获取表情包的图片URL
+const emojiUrls = computed(() => {
+  const urls = emojiItems.value.map((item) => {
+    if (item.startsWith('assets/') || item.startsWith('/assets/')) {
+      const url = 'asset://' + item.replace(/^\/?assets\//, '')
+      console.log('[MessageItem] Emoji asset URL:', url)
+      return url
+    }
+    if (item.startsWith('http')) {
+      return item
+    }
+    return item
+  })
+  console.log('[MessageItem] All emoji URLs:', urls)
+  return urls
+})
+
 // 高亮关键词
 function highlightContent(content: string): string {
   if (!props.highlightKeywords?.length || !content) return content
@@ -126,6 +180,18 @@ function highlightContent(content: string): string {
     regex,
     '<mark class="bg-transparent border-b-2 border-yellow-400 dark:border-yellow-500">$1</mark>'
   )
+}
+
+// 打开大图预览
+function openImage(url: string) {
+  expandedImage.value = url
+  showImageModal.value = true
+}
+
+// 关闭大图预览
+function closeImage() {
+  showImageModal.value = false
+  expandedImage.value = null
 }
 </script>
 
@@ -181,7 +247,30 @@ function highlightContent(content: string): string {
                 {{ message.replyToContent }}
               </p>
             </div>
+
+            <!-- 图片消息 -->
+            <img
+              v-if="isImage && imageUrl"
+              :src="imageUrl"
+              class="max-w-48 max-h-48 rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+              @click="openImage(imageUrl!)"
+            />
+
+            <!-- 表情包消息 -->
+            <div v-else-if="isEmoji" class="flex flex-wrap gap-1 items-center">
+              <template v-for="(item, index) in emojiItems" :key="index">
+                <img
+                  v-if="emojiUrls[index] && !emojiUrls[index].startsWith('data:') && !emojiUrls[index].startsWith('<')"
+                  :src="emojiUrls[index]"
+                  class="w-6 h-6 object-contain align-middle"
+                />
+                <span v-else class="text-sm text-gray-700 dark:text-gray-200" v-html="highlightContent(item)" />
+              </template>
+            </div>
+
+            <!-- 文本消息 -->
             <p
+              v-else
               class="whitespace-pre-wrap break-all text-sm text-gray-700 dark:text-gray-200"
               v-html="highlightContent(message.content || '')"
             />
@@ -199,5 +288,26 @@ function highlightContent(content: string): string {
         </div>
       </div>
     </div>
+
+    <!-- 大图预览弹窗 -->
+    <Teleport to="body">
+      <div
+        v-if="showImageModal && expandedImage"
+        class="fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center cursor-pointer"
+        @click="closeImage"
+      >
+        <button
+          class="absolute top-5 right-5 w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white text-2xl hover:bg-white/30 transition-colors"
+          @click="closeImage"
+        >
+          ×
+        </button>
+        <img
+          :src="expandedImage"
+          class="max-w-[90vw] max-h-[90vh] object-contain cursor-default"
+          @click.stop
+        />
+      </div>
+    </Teleport>
   </div>
 </template>

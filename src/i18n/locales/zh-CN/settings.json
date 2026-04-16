@@ -175,6 +175,13 @@
       "logSafe": "日志文件主要用于排查BUG，可以安全清理",
       "noRecover": "所有文件清理后无法恢复，请谨慎操作"
     },
+    "assetsImport": {
+      "title": "资源文件导入",
+      "description": "导入聊天记录中的图片和表情包资源，导入后可离线查看",
+      "openFolder": "打开目录",
+      "importFolder": "导入文件夹",
+      "importZip": "导入 ZIP"
+    },
     "cache": {
       "databases": {
         "name": "聊天记录数据库",

@@ -175,6 +175,13 @@
       "logSafe": "ログファイルは主にバグ調査用です。安全にクリアできます",
       "noRecover": "クリアしたファイルは復元できません。慎重に操作してください"
     },
+    "assetsImport": {
+      "title": "アセットインポート",
+      "description": "チャット履歴の画像と絵文字アセットをインポート、オフライン表示に対応",
+      "openFolder": "フォルダを開く",
+      "importFolder": "フォルダをインポート",
+      "importZip": "ZIPをインポート"
+    },
     "cache": {
       "databases": {
         "name": "チャット履歴データベース",

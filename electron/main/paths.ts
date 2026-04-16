@@ -390,6 +390,13 @@ export function getLogsDir(): string {
 }
 
 /**
+ * 获取资源文件目录（存放图片、表情包等资源）
+ */
+export function getAssetsDir(): string {
+  return path.join(getAppDataDir(), 'assets')
+}
+
+/**
  * 确保目录存在
  */
 export function ensureDir(dirPath: string): void {
@@ -408,6 +415,7 @@ export function ensureAppDirs(): void {
   ensureDir(getCacheDir())
   ensureDir(getTempDir())
   ensureDir(getLogsDir())
+  ensureDir(getAssetsDir())
   // 写入数据目录标记文件
   ensureMarkerFile(getAppDataDir(), CHATLAB_MARKER_FILE)
 }

@@ -503,4 +503,54 @@ export const mergeApi = {
   clearCache: (filePath?: string): Promise<boolean> => {
     return ipcRenderer.invoke('merge:clearCache', filePath)
   },
+
+  // ==================== 资源文件管理 ====================
+
+  /**
+   * 选择资源文件夹
+   */
+  selectAssetsFolder: (): Promise<{ folderPath?: string; error?: string } | null> => {
+    return ipcRenderer.invoke('chat:selectAssetsFolder')
+  },
+
+  /**
+   * 选择 ZIP 资源文件
+   */
+  selectAssetsFile: (): Promise<{ filePath?: string; error?: string } | null> => {
+    return ipcRenderer.invoke('chat:selectAssetsFile')
+  },
+
+  /**
+   * 导入资源文件（ZIP）或文件夹
+   */
+  importAssets: (sourcePath: string): Promise<{ success: boolean; assetsPath?: string; error?: string }> => {
+    return ipcRenderer.invoke('chat:importAssets', sourcePath)
+  },
+
+  /**
+   * 获取资源文件目录路径
+   */
+  getAssetsPath: (): Promise<{ assetsPath: string }> => {
+    return ipcRenderer.invoke('chat:getAssetsPath')
+  },
+
+  /**
+   * 在文件管理器中打开资源目录
+   */
+  openAssetsDir: (): Promise<{ success: boolean; error?: string }> => {
+    return ipcRenderer.invoke('chat:openAssetsDir')
+  },
+
+  /**
+   * 监听资源导入进度
+   */
+  onImportAssetsProgress: (callback: (progress: { stage: string; current: number; total: number; currentFile: string }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, progress: { stage: string; current: number; total: number; currentFile: string }) => {
+      callback(progress)
+    }
+    ipcRenderer.on('chat:importAssetsProgress', handler)
+    return () => {
+      ipcRenderer.removeListener('chat:importAssetsProgress', handler)
+    }
+  },
 }

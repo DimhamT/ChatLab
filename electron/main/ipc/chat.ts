@@ -2,7 +2,8 @@
  * 聊天记录导入与分析 IPC 处理器
  */
 
-import { ipcMain, app, dialog } from 'electron'
+import { ipcMain, app, dialog, shell } from 'electron'
+import * as path from 'path'
 import { getConversationCountsBySession } from '../ai/conversations'
 import * as databaseCore from '../database/core'
 import * as worker from '../worker/workerManager'
@@ -12,6 +13,7 @@ import type { IpcContext } from './types'
 import { CURRENT_SCHEMA_VERSION, getPendingMigrationInfos } from '../database/migrations'
 import { exportSessionToTempFile, cleanupTempExportFiles } from '../merger'
 import { t } from '../i18n'
+import { getAssetsDir, ensureDir } from '../paths'
 
 /**
  * 注册聊天记录相关 IPC 处理器
@@ -1063,15 +1065,350 @@ export function registerChatHandlers(ctx: IpcContext): void {
     }
   })
 
-  /**
-   * 清理临时导出文件
-   */
+/**
+ * 清理临时导出文件
+ */
   ipcMain.handle('chat:cleanupTempExportFiles', async (_, filePaths: string[]) => {
     try {
       cleanupTempExportFiles(filePaths)
       return { success: true }
     } catch (error) {
       console.error('[IpcMain] Failed to clean up temp files:', error)
+      return { success: false, error: String(error) }
+    }
+  })
+
+  // ==================== 资源文件管理 ====================
+
+  /**
+   * 选择资源文件夹
+   */
+  ipcMain.handle('chat:selectAssetsFolder', async () => {
+    try {
+      const { canceled, filePaths } = await dialog.showOpenDialog({
+        title: t('dialog.selectAssetsFolder'),
+        defaultPath: app.getPath('documents'),
+        properties: ['openDirectory'],
+        buttonLabel: t('dialog.select'),
+      })
+
+      if (canceled || filePaths.length === 0) {
+        return null
+      }
+
+      return { folderPath: filePaths[0] }
+    } catch (error) {
+      console.error('[IpcMain] Error selecting assets folder:', error)
+      return { error: String(error) }
+    }
+  })
+
+  /**
+   * 选择 ZIP 资源文件
+   */
+  ipcMain.handle('chat:selectAssetsFile', async () => {
+    try {
+      const { canceled, filePaths } = await dialog.showOpenDialog({
+        title: t('dialog.selectAssetsFile'),
+        defaultPath: app.getPath('documents'),
+        properties: ['openFile'],
+        filters: [
+          { name: t('dialog.zipFiles'), extensions: ['zip'] },
+          { name: t('dialog.allFiles'), extensions: ['*'] },
+        ],
+        buttonLabel: t('dialog.import'),
+      })
+
+      if (canceled || filePaths.length === 0) {
+        return null
+      }
+
+      return { filePath: filePaths[0] }
+    } catch (error) {
+      console.error('[IpcMain] Error selecting assets file:', error)
+      return { error: String(error) }
+    }
+  })
+
+  /**
+   * 导入资源文件或文件夹（ZIP解压或文件夹复制到本地缓存）
+   */
+  ipcMain.handle('chat:importAssets', async (_, sourcePath: string) => {
+    try {
+      const fsPromises = await import('fs/promises')
+
+      const assetsDir = getAssetsDir()
+
+      // 确保目标目录存在
+      ensureDir(assetsDir)
+
+      // 判断是文件还是文件夹
+      const stats = await fsPromises.stat(sourcePath)
+      const isZip = stats.isFile() && sourcePath.toLowerCase().endsWith('.zip')
+
+      if (isZip) {
+        // 解压 ZIP 文件
+        return await importFromZip(sourcePath, assetsDir)
+      } else {
+        // 复制文件夹
+        return await importFromFolder(sourcePath, assetsDir)
+      }
+    } catch (error) {
+      console.error('[IpcMain] Failed to import assets:', error)
+      return { success: false, error: String(error) }
+    }
+  })
+
+  /**
+   * 查找共同的顶层文件夹前缀
+   */
+  function findCommonPrefix(paths: string[]): string | null {
+    if (paths.length === 0) return null
+    if (paths.length === 1) {
+      const first = paths[0]
+      const slashIndex = first.indexOf('/')
+      return slashIndex > 0 ? first.substring(0, slashIndex) : null
+    }
+
+    const first = paths[0]
+    let commonLen = first.length
+
+    for (let i = 1; i < paths.length; i++) {
+      const p = paths[i]
+      commonLen = Math.min(commonLen, p.length)
+      for (let j = 0; j < commonLen; j++) {
+        if (first[j] !== p[j]) {
+          commonLen = j
+          break
+        }
+      }
+      if (commonLen === 0) return null
+    }
+
+    // 确保共同前缀是一个完整的文件夹名
+    const lastSlash = first.lastIndexOf('/', commonLen - 1)
+    return lastSlash > 0 ? first.substring(0, lastSlash) : null
+  }
+
+  /**
+   * 从 ZIP 文件导入（使用 yauzl 流式解压，支持大文件）
+   * 自动剥离顶层文件夹
+   */
+  async function importFromZip(zipPath: string, destDir: string) {
+    const yauzl = await import('yauzl')
+    const fs = await import('fs')
+    const path = await import('path')
+
+    return await new Promise<{ success: boolean; assetsPath?: string; error?: string }>((resolve) => {
+      yauzl.open(zipPath, { lazyEntries: true }, (err, zipfile) => {
+        if (err || !zipfile) {
+          console.error('[IpcMain] Failed to open ZIP:', err)
+          resolve({ success: false, error: String(err) })
+          return
+        }
+
+        const total = zipfile.entryCount
+        let current = 0
+        let stripPrefix = ''
+
+        // 获取所有条目来确定是否需要剥离顶层文件夹
+        const entries: string[] = []
+        zipfile.on('entry', (entry) => {
+          entries.push(entry.fileName)
+          zipfile.readEntry()
+        })
+
+        zipfile.on('end', () => {
+          // 检查是否所有条目都有共同的顶层文件夹
+          const commonPrefix = findCommonPrefix(entries)
+          if (commonPrefix) {
+            stripPrefix = commonPrefix + '/'
+            console.log('[IpcMain] Stripping common prefix from ZIP:', stripPrefix)
+          }
+
+          // 重新打开文件进行解压
+          yauzl.open(zipPath, { lazyEntries: true }, (err, zipfile2) => {
+            if (err || !zipfile2) {
+              console.error('[IpcMain] Failed to re-open ZIP:', err)
+              resolve({ success: false, error: String(err) })
+              return
+            }
+
+            zipfile2.on('entry', (entry) => {
+              if (entry.fileName.endsWith('/')) {
+                zipfile2.readEntry()
+                return
+              }
+
+              // 剥离顶层文件夹
+              let destFileName = entry.fileName
+              if (stripPrefix && entry.fileName.startsWith(stripPrefix)) {
+                destFileName = entry.fileName.substring(stripPrefix.length)
+              }
+
+              if (!destFileName || destFileName.startsWith('/')) {
+                zipfile2.readEntry()
+                return
+              }
+
+              const destPath = path.join(destDir, destFileName)
+
+              // 安全检查
+              if (!destPath.startsWith(destDir)) {
+                console.warn('[IpcMain] Skipping unsafe path:', entry.fileName)
+                zipfile2.readEntry()
+                return
+              }
+
+              // 确保父目录存在
+              const dir = path.dirname(destPath)
+              if (!fs.existsSync(dir)) {
+                fs.mkdirSync(dir, { recursive: true })
+              }
+
+              current++
+              win.webContents.send('chat:importAssetsProgress', {
+                stage: 'copying',
+                current,
+                total,
+                currentFile: path.basename(destFileName),
+              })
+
+              zipfile2.openReadStream(entry, (err, readStream) => {
+                if (err || !readStream) {
+                  console.error('[IpcMain] Failed to read entry:', entry.fileName, err)
+                  zipfile2.readEntry()
+                  return
+                }
+
+                const writeStream = fs.createWriteStream(destPath)
+                readStream.pipe(writeStream)
+                writeStream.on('finish', () => {
+                  zipfile2.readEntry()
+                })
+                writeStream.on('error', (err) => {
+                  console.error('[IpcMain] Failed to write file:', destPath, err)
+                  zipfile2.readEntry()
+                })
+              })
+            })
+
+            zipfile2.on('end', () => {
+              win.webContents.send('chat:importAssetsProgress', {
+                stage: 'completed',
+                current: total,
+                total,
+                currentFile: '',
+              })
+              console.log('[IpcMain] Assets extracted from ZIP to:', destDir)
+              resolve({ success: true, assetsPath: destDir })
+            })
+
+            zipfile2.on('error', (err) => {
+              console.error('[IpcMain] ZIP error:', err)
+              resolve({ success: false, error: String(err) })
+            })
+
+            zipfile2.readEntry()
+          })
+        })
+
+        zipfile.on('error', (err) => {
+          console.error('[IpcMain] ZIP error:', err)
+          resolve({ success: false, error: String(err) })
+        })
+
+        zipfile.readEntry()
+      })
+    })
+  }
+
+  /**
+   * 从文件夹导入（复制内容到目标目录，而不是复制文件夹本身）
+   */
+  async function importFromFolder(srcDir: string, destDir: string) {
+    const fsPromises = await import('fs/promises')
+
+    let totalFiles = 0
+    let copiedFiles = 0
+
+    // 统计文件总数（递归）
+    async function countFiles(src: string): Promise<void> {
+      const entries = await fsPromises.readdir(src, { withFileTypes: true })
+      for (const entry of entries) {
+        if (entry.isDirectory()) {
+          await countFiles(path.join(src, entry.name))
+        } else {
+          totalFiles++
+        }
+      }
+    }
+
+    await countFiles(srcDir)
+
+    win.webContents.send('chat:importAssetsProgress', {
+      stage: 'copying',
+      current: 0,
+      total: totalFiles,
+      currentFile: '',
+    })
+
+    // 复制文件或目录到目标目录
+    async function copyToDest(src: string, dest: string): Promise<void> {
+      const entries = await fsPromises.readdir(src, { withFileTypes: true })
+
+      for (const entry of entries) {
+        const srcPath = path.join(src, entry.name)
+        const destPath = path.join(dest, entry.name)
+
+        if (entry.isDirectory()) {
+          await fsPromises.mkdir(destPath, { recursive: true })
+          await copyToDest(srcPath, destPath)
+        } else {
+          copiedFiles++
+          win.webContents.send('chat:importAssetsProgress', {
+            stage: 'copying',
+            current: copiedFiles,
+            total: totalFiles,
+            currentFile: entry.name,
+          })
+          await fsPromises.copyFile(srcPath, destPath)
+        }
+      }
+    }
+
+    // 直接复制 srcDir 的内容到 destDir，而不是复制 srcDir 本身
+    await copyToDest(srcDir, destDir)
+
+    win.webContents.send('chat:importAssetsProgress', {
+      stage: 'completed',
+      current: totalFiles,
+      total: totalFiles,
+      currentFile: '',
+    })
+
+    console.log('[IpcMain] Assets copied from folder to:', destDir)
+    return { success: true, assetsPath: destDir }
+  }
+
+  /**
+   * 获取资源文件目录路径
+   */
+  ipcMain.handle('chat:getAssetsPath', async () => {
+    return { assetsPath: getAssetsDir() }
+  })
+
+  /**
+   * 在文件管理器中打开资源目录
+   */
+  ipcMain.handle('chat:openAssetsDir', async () => {
+    try {
+      const assetsDir = getAssetsDir()
+      ensureDir(assetsDir)
+      await shell.openPath(assetsDir)
+      return { success: true }
+    } catch (error) {
+      console.error('[IpcMain] Failed to open assets directory:', error)
       return { success: false, error: String(error) }
     }
   })

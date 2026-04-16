@@ -175,6 +175,13 @@
       "logSafe": "Log files are mainly for debugging and can be safely cleared",
       "noRecover": "All cleared files cannot be recovered, please proceed with caution"
     },
+    "assetsImport": {
+      "title": "Assets Import",
+      "description": "Import images and emoji assets from chat records for offline viewing",
+      "openFolder": "Open Folder",
+      "importFolder": "Import Folder",
+      "importZip": "Import ZIP"
+    },
     "cache": {
       "databases": {
         "name": "Chat Databases",

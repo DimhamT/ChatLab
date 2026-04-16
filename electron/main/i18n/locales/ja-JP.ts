@@ -31,6 +31,9 @@ export default {
     selectDirectory: 'ディレクトリを選択',
     selectFolder: 'フォルダーを選択',
     selectFolderError: 'フォルダー選択中にエラーが発生しました：',
+    selectAssetsFile: 'アセットファイルを選択',
+    selectAssetsFolder: 'アセットフォルダーを選択',
+    zipFiles: 'ZIP アーカイブ',
   },
 
   // ===== P1: データベースマイグレーション =====

@@ -5,6 +5,7 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import TitleBar from '@/components/common/TitleBar.vue'
 import Sidebar from '@/components/common/Sidebar.vue'
+import ImagePreviewModal from '@/components/common/ImagePreviewModal.vue'
 import ScreenCaptureModal from '@/components/common/ScreenCaptureModal.vue'
 import { ChatRecordDrawer } from '@/components/common/ChatRecord'
 import GlobalTaskBar from '@/components/AIChat/GlobalTaskBar.vue'
@@ -80,6 +81,11 @@ onMounted(async () => {
       :open="layoutStore.showScreenCaptureModal"
       :image-data="layoutStore.screenCaptureImage"
       @update:open="(v) => (v ? null : layoutStore.closeScreenCaptureModal())"
+    />
+    <ImagePreviewModal
+      :open="layoutStore.showImagePreviewModal"
+      :image-src="layoutStore.imagePreviewSrc"
+      @update:open="(v) => (v ? null : layoutStore.closeImagePreviewModal())"
     />
     <!-- 全局聊天记录查看器 -->
     <ChatRecordDrawer />

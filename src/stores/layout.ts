@@ -11,6 +11,8 @@ export const useLayoutStore = defineStore(
     const isSidebarCollapsed = ref(false)
     const showScreenCaptureModal = ref(false)
     const screenCaptureImage = ref<string | null>(null)
+    const showImagePreviewModal = ref(false)
+    const imagePreviewSrc = ref<string | null>(null)
     const showChatRecordDrawer = ref(false)
     const chatRecordQuery = ref<ChatRecordQuery | null>(null)
 
@@ -45,6 +47,24 @@ export const useLayoutStore = defineStore(
     }
 
     /**
+     * 打开图片预览弹窗
+     */
+    function openImagePreviewModal(imageSrc: string) {
+      imagePreviewSrc.value = imageSrc
+      showImagePreviewModal.value = true
+    }
+
+    /**
+     * 关闭图片预览弹窗
+     */
+    function closeImagePreviewModal() {
+      showImagePreviewModal.value = false
+      setTimeout(() => {
+        imagePreviewSrc.value = null
+      }, 300)
+    }
+
+    /**
      * 打开聊天记录抽屉并设置查询参数
      */
     function openChatRecordDrawer(query: ChatRecordQuery) {
@@ -71,6 +91,8 @@ export const useLayoutStore = defineStore(
       isToolsPanelLocked,
       showScreenCaptureModal,
       screenCaptureImage,
+      showImagePreviewModal,
+      imagePreviewSrc,
       showChatRecordDrawer,
       chatRecordQuery,
       screenshotMobileAdapt,
@@ -78,6 +100,8 @@ export const useLayoutStore = defineStore(
       toggleToolsPanelLock,
       openScreenCaptureModal,
       closeScreenCaptureModal,
+      openImagePreviewModal,
+      closeImagePreviewModal,
       openChatRecordDrawer,
       closeChatRecordDrawer,
     }

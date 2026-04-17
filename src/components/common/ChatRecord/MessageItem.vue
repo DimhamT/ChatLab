@@ -4,10 +4,11 @@
  * 支持 Owner 消息显示在右侧（类似聊天界面）
  * 支持图片、表情包等多媒体消息
  */
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { ChatRecordMessage } from './types'
+import { useLayoutStore } from '@/stores/layout'
 import { useSessionStore } from '@/stores/session'
 
 const { t } = useI18n()
@@ -27,10 +28,8 @@ const emit = defineEmits<{
   (e: 'view-context', messageId: number): void
 }>()
 
+const layoutStore = useLayoutStore()
 const sessionStore = useSessionStore()
-
-const showImageModal = ref(false)
-const expandedImage = ref<string | null>(null)
 
 // 判断当前消息是否是 Owner 发送的
 const isOwner = computed(() => {
@@ -124,7 +123,6 @@ const avatarLetter = computed(() => {
 // 判断消息类型
 const isImage = computed(() => props.message.type === 1)
 const isEmoji = computed(() => props.message.type === 5)
-const isText = computed(() => props.message.type === 0)
 
 // 获取图片URL
 const imageUrl = computed(() => {
@@ -185,14 +183,7 @@ function highlightContent(content: string): string {
 
 // 打开大图预览
 function openImage(url: string) {
-  expandedImage.value = url
-  showImageModal.value = true
-}
-
-// 关闭大图预览
-function closeImage() {
-  showImageModal.value = false
-  expandedImage.value = null
+  layoutStore.openImagePreviewModal(url)
 }
 </script>
 
@@ -300,22 +291,5 @@ function closeImage() {
         </div>
       </div>
     </div>
-
-    <!-- 大图预览弹窗 -->
-    <Teleport to="body">
-      <div
-        v-if="showImageModal && expandedImage"
-        class="fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center cursor-pointer"
-        @click="closeImage"
-      >
-        <button
-          class="absolute top-5 right-5 w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white text-2xl hover:bg-white/30 transition-colors"
-          @click="closeImage"
-        >
-          ×
-        </button>
-        <img :src="expandedImage" class="max-w-[90vw] max-h-[90vh] object-contain cursor-default" @click.stop />
-      </div>
-    </Teleport>
   </div>
 </template>

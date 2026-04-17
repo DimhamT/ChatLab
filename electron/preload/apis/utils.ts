@@ -225,6 +225,13 @@ export const cacheApi = {
   showInFolder: (filePath: string): Promise<{ success: boolean; error?: string }> => {
     return ipcRenderer.invoke('cache:showInFolder', filePath)
   },
+
+  /**
+   * 使用系统默认程序打开文件
+   */
+  openFile: (filePath: string): Promise<{ success: boolean; error?: string }> => {
+    return ipcRenderer.invoke('cache:openFile', filePath)
+  },
 }
 
 // ==================== Session API ====================

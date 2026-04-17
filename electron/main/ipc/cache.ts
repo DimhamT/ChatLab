@@ -6,6 +6,7 @@ import * as path from 'path'
 import type { IpcContext } from './types'
 import {
   getAppDataDir,
+  getAssetsDir,
   getDatabaseDir,
   getCacheDir,
   getAiDataDir,
@@ -355,6 +356,38 @@ export function registerCacheHandlers(_context: IpcContext): void {
       return { success: true }
     } catch (error) {
       console.error('[Cache] Error showing file in folder:', error)
+      return { success: false, error: String(error) }
+    }
+  })
+
+  /**
+   * 使用系统默认程序打开文件
+   */
+  ipcMain.handle('cache:openFile', async (_, filePath: string) => {
+    try {
+      let resolvedPath = filePath
+
+      if (filePath.startsWith('assets/') || filePath.startsWith('/assets/')) {
+        const assetsDir = getAssetsDir()
+        resolvedPath = path.join(assetsDir, filePath.replace(/^\/?assets\//, ''))
+
+        if (!resolvedPath.startsWith(assetsDir)) {
+          return { success: false, error: '非法文件路径' }
+        }
+      }
+
+      if (!fsSync.existsSync(resolvedPath)) {
+        return { success: false, error: '文件不存在' }
+      }
+
+      const errorMessage = await shell.openPath(resolvedPath)
+      if (errorMessage) {
+        return { success: false, error: errorMessage }
+      }
+
+      return { success: true }
+    } catch (error) {
+      console.error('[Cache] Error opening file:', error)
       return { success: false, error: String(error) }
     }
   })

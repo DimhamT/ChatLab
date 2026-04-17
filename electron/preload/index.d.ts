@@ -886,6 +886,7 @@ interface CacheApi {
   ) => Promise<{ success: boolean; filePath?: string; error?: string }>
   getLatestImportLog: () => Promise<{ success: boolean; path?: string; name?: string; error?: string }>
   showInFolder: (filePath: string) => Promise<{ success: boolean; error?: string }>
+  openFile: (filePath: string) => Promise<{ success: boolean; error?: string }>
   getDataDir: () => Promise<DataDirInfo>
   selectDataDir: () => Promise<{ success: boolean; path?: string; error?: string }>
   setDataDir: (

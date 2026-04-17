@@ -77,7 +77,7 @@ const nameColor = computed(() => currentColor.value.name)
 
 // 气泡颜色（Owner 使用绿色，其他人使用灰色；媒体消息使用透明背景）
 const bubbleColor = computed(() => {
-  if (isImage.value || isVoice.value || isVideo.value || isEmoji.value) return ''
+  if (isImage.value || isVoice.value || isVideo.value || isFile.value || isEmoji.value) return ''
   return isOwner.value ? 'bg-green-100 dark:bg-green-900/40' : 'bg-gray-100 dark:bg-gray-800'
 })
 
@@ -126,6 +126,7 @@ const avatarLetter = computed(() => {
 const isImage = computed(() => props.message.type === 1)
 const isVoice = computed(() => props.message.type === 2)
 const isVideo = computed(() => props.message.type === 3)
+const isFile = computed(() => props.message.type === 4)
 const isEmoji = computed(() => props.message.type === 5)
 
 function resolveAssetUrl(content: string | null | undefined): string | null {
@@ -161,6 +162,116 @@ const voiceUrl = computed(() => {
 const videoUrl = computed(() => {
   if (!isVideo.value) return null
   return resolveMarkedMediaUrl(props.message.content, '[视频]')
+})
+
+function extractFileName(pathOrName: string) {
+  const normalized = pathOrName.split(/[\\/]/).pop() || pathOrName
+  return normalized.trim()
+}
+
+function getFileExtension(fileName: string) {
+  const extension = fileName.includes('.') ? fileName.split('.').pop() || '' : ''
+  return extension.toLowerCase()
+}
+
+function isMissingFilePlaceholder(fileName: string) {
+  return /^notfound\.(png|jpg|jpeg|webp|gif|bmp|svg)$/i.test(fileName.trim())
+}
+
+const fileInfo = computed(() => {
+  if (!isFile.value) return null
+
+  const rawContent = (props.message.content || '').trim()
+  if (!rawContent) return null
+
+  if (rawContent.startsWith('assets/') || rawContent.startsWith('/assets/')) {
+    const fileName = extractFileName(rawContent)
+    return {
+      openPath: isMissingFilePlaceholder(fileName) ? null : rawContent,
+      fileName,
+      extension: isMissingFilePlaceholder(fileName) ? '' : getFileExtension(fileName),
+      isMissing: isMissingFilePlaceholder(fileName),
+    }
+  }
+
+  const markerMatch = rawContent.match(/^\[(?:File|文件):\s*(.+)\]$/i)
+  if (markerMatch) {
+    const fileName = extractFileName(markerMatch[1])
+    return {
+      openPath: null,
+      fileName,
+      extension: getFileExtension(fileName),
+      isMissing: false,
+    }
+  }
+
+  const fileName = extractFileName(rawContent)
+  return {
+    openPath: rawContent,
+    fileName,
+    extension: getFileExtension(fileName),
+    isMissing: false,
+  }
+})
+
+const filePreviewMeta = computed(() => {
+  if (fileInfo.value?.isMissing) {
+    return {
+      badge: 'MISS',
+      icon: 'i-heroicons-exclamation-triangle',
+      cover: 'from-gray-400 to-slate-500',
+      description: '文件不存在',
+    }
+  }
+
+  const extension = fileInfo.value?.extension || ''
+
+  if (['pdf'].includes(extension)) {
+    return {
+      badge: 'PDF',
+      icon: 'i-heroicons-document-text',
+      cover: 'from-red-500 to-rose-600',
+      description: 'PDF 文件',
+    }
+  }
+  if (['doc', 'docx', 'pages', 'rtf', 'txt', 'md'].includes(extension)) {
+    return {
+      badge: extension.toUpperCase() || 'DOC',
+      icon: 'i-heroicons-document-text',
+      cover: 'from-blue-500 to-sky-600',
+      description: `${extension.toUpperCase() || 'DOC'} 文件`,
+    }
+  }
+  if (['xls', 'xlsx', 'csv', 'numbers'].includes(extension)) {
+    return {
+      badge: extension.toUpperCase() || 'XLS',
+      icon: 'i-heroicons-table-cells',
+      cover: 'from-emerald-500 to-green-600',
+      description: `${extension.toUpperCase() || 'XLS'} 文件`,
+    }
+  }
+  if (['ppt', 'pptx', 'key'].includes(extension)) {
+    return {
+      badge: extension.toUpperCase() || 'PPT',
+      icon: 'i-heroicons-presentation-chart-bar',
+      cover: 'from-orange-500 to-amber-600',
+      description: `${extension.toUpperCase() || 'PPT'} 文件`,
+    }
+  }
+  if (['zip', 'rar', '7z', 'tar', 'gz'].includes(extension)) {
+    return {
+      badge: extension.toUpperCase() || 'ZIP',
+      icon: 'i-heroicons-archive-box',
+      cover: 'from-violet-500 to-purple-600',
+      description: `${extension.toUpperCase() || 'ZIP'} 文件`,
+    }
+  }
+  return {
+    badge: extension ? extension.toUpperCase() : 'FILE',
+    icon: 'i-heroicons-document',
+    cover: 'from-slate-500 to-gray-600',
+    description: extension ? `${extension.toUpperCase()} 文件` : '文件',
+  }
 })
 
 // 解析表情包内容
@@ -214,6 +325,14 @@ function openImage(url: string) {
 function openVideo(url: string) {
   layoutStore.openVideoPreviewModal(url)
 }
+
+async function openFile(path: string | null | undefined) {
+  if (!path) return
+  const result = await window.cacheApi.openFile(path)
+  if (!result.success) {
+    console.error('[MessageItem] Failed to open file:', result.error || path)
+  }
+}
 </script>
 
 <template>
@@ -255,7 +374,7 @@ function openVideo(url: string) {
             class="relative inline-block rounded-lg transition-shadow"
             :class="[
               bubbleColor,
-              isImage || isVoice || isVideo || isEmoji ? '' : 'px-3 py-2',
+              isImage || isVoice || isVideo || isFile || isEmoji ? '' : 'px-3 py-2',
               isTarget ? 'ring-2 ring-yellow-400 dark:ring-yellow-500' : '',
             ]"
           >
@@ -309,6 +428,37 @@ function openVideo(url: string) {
               </button>
               <p v-if="!videoUrl" class="text-sm text-gray-500 dark:text-gray-400">{{ message.content || '[视频]' }}</p>
             </div>
+
+            <!-- 文件消息 -->
+            <button
+              v-else-if="isFile && fileInfo"
+              type="button"
+              class="flex w-[min(20rem,72vw)] items-center gap-3 rounded-2xl bg-gray-100 p-2.5 text-left transition-colors hover:bg-gray-200/90 dark:bg-gray-800 dark:hover:bg-gray-700"
+              :disabled="!fileInfo.openPath"
+              @click.stop.prevent="openFile(fileInfo.openPath)"
+            >
+              <div
+                class="relative flex h-16 w-16 shrink-0 flex-col items-center justify-center overflow-hidden rounded-xl bg-linear-to-br text-white shadow-sm"
+                :class="filePreviewMeta.cover"
+              >
+                <UIcon :name="filePreviewMeta.icon" class="h-6 w-6 opacity-95" />
+                <span class="mt-1 text-[10px] font-semibold tracking-[0.08em]">{{ filePreviewMeta.badge }}</span>
+              </div>
+              <div class="min-w-0 flex-1">
+                <p class="line-clamp-2 break-all text-sm font-medium text-gray-800 dark:text-gray-100">
+                  {{ fileInfo.isMissing ? '文件缺失' : fileInfo.fileName }}
+                </p>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {{ filePreviewMeta.description }}
+                </p>
+              </div>
+              <UIcon
+                v-if="fileInfo.openPath"
+                name="i-heroicons-arrow-top-right-on-square"
+                class="h-4 w-4 shrink-0 text-gray-400 dark:text-gray-500"
+              />
+            </button>
+            <p v-else-if="isFile" class="text-sm text-gray-500 dark:text-gray-400">{{ message.content || '[文件]' }}</p>
 
             <!-- 表情包消息 -->
             <div v-else-if="isEmoji" class="flex flex-wrap gap-1 items-center">

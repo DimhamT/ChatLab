@@ -63,6 +63,7 @@ export {
   getConversationBetween,
   getMessagesBefore,
   getMessagesAfter,
+  getMessageIdByPlatformMessageId,
 } from './messages'
 
 // 聊天记录查询类型

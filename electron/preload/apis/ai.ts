@@ -232,6 +232,13 @@ export const aiApi = {
   },
 
   /**
+   * 通过平台消息 ID 获取最新一条内部消息 ID（用于回复消息跳转）
+   */
+  getMessageIdByPlatformMessageId: (sessionId: string, platformMessageId: string): Promise<number | null> => {
+    return ipcRenderer.invoke('ai:getMessageIdByPlatformMessageId', sessionId, platformMessageId)
+  },
+
+  /**
    * 获取最近消息（AI Agent 专用）
    */
   getRecentMessages: (

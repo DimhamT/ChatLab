@@ -146,6 +146,18 @@ export function registerMessagesHandlers({ win }: IpcContext): void {
     }
   )
 
+  /**
+   * 通过平台消息 ID 获取最新一条内部消息 ID（用于回复消息跳转）
+   */
+  ipcMain.handle('ai:getMessageIdByPlatformMessageId', async (_, sessionId: string, platformMessageId: string) => {
+    try {
+      return await worker.getMessageIdByPlatformMessageId(sessionId, platformMessageId)
+    } catch (error) {
+      console.error('Failed to resolve message id by platform message id:', error)
+      return null
+    }
+  })
+
   // ==================== 自定义筛选 ====================
 
   /**

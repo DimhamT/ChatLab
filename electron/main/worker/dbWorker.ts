@@ -43,6 +43,7 @@ import {
   getConversationBetween,
   getMessagesBefore,
   getMessagesAfter,
+  getMessageIdByPlatformMessageId,
   // 成员管理
   getMembers,
   getMembersPaginated,
@@ -199,6 +200,7 @@ const syncHandlers: Record<string, (payload: any) => any> = {
   getConversationBetween: (p) => getConversationBetween(p.sessionId, p.memberId1, p.memberId2, p.filter, p.limit),
   getMessagesBefore: (p) => getMessagesBefore(p.sessionId, p.beforeId, p.limit, p.filter, p.senderId, p.keywords),
   getMessagesAfter: (p) => getMessagesAfter(p.sessionId, p.afterId, p.limit, p.filter, p.senderId, p.keywords),
+  getMessageIdByPlatformMessageId: (p) => getMessageIdByPlatformMessageId(p.sessionId, p.platformMessageId),
 
   // SQL 实验室
   executeRawSQL: (p) => executeRawSQL(p.sessionId, p.sql),

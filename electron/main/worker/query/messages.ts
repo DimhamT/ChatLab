@@ -124,6 +124,17 @@ const SYSTEM_FILTER = "AND COALESCE(m.account_name, '') != '系统消息'"
 // 只获取文本消息的过滤条件
 const TEXT_ONLY_FILTER = "AND msg.type = 0 AND msg.content IS NOT NULL AND msg.content != ''"
 
+const REPLY_LATEST_JOIN = `
+  LEFT JOIN (
+    SELECT platform_message_id, MAX(id) AS latest_id
+    FROM message
+    WHERE platform_message_id IS NOT NULL
+    GROUP BY platform_message_id
+  ) reply_latest ON msg.reply_to_message_id = reply_latest.platform_message_id
+  LEFT JOIN message reply_msg ON reply_msg.id = reply_latest.latest_id
+  LEFT JOIN member reply_m ON reply_msg.sender_id = reply_m.id
+`
+
 // ==================== 查询函数 ====================
 
 /**
@@ -173,8 +184,7 @@ export function getRecentMessages(sessionId: string, filter?: TimeFilter, limit:
       COALESCE(reply_m.group_nickname, reply_m.account_name, reply_m.platform_id) as replyToSenderName
     FROM message msg
     JOIN member m ON msg.sender_id = m.id
-    LEFT JOIN message reply_msg ON msg.reply_to_message_id = reply_msg.platform_message_id
-    LEFT JOIN member reply_m ON reply_msg.sender_id = reply_m.id
+    ${REPLY_LATEST_JOIN}
     WHERE 1=1
     ${timeCondition}
     ${SYSTEM_FILTER}
@@ -237,8 +247,7 @@ export function getAllRecentMessages(sessionId: string, filter?: TimeFilter, lim
       COALESCE(reply_m.group_nickname, reply_m.account_name, reply_m.platform_id) as replyToSenderName
     FROM message msg
     JOIN member m ON msg.sender_id = m.id
-    LEFT JOIN message reply_msg ON msg.reply_to_message_id = reply_msg.platform_message_id
-    LEFT JOIN member reply_m ON reply_msg.sender_id = reply_m.id
+    ${REPLY_LATEST_JOIN}
     WHERE 1=1
     ${timeCondition}
     ORDER BY msg.ts DESC
@@ -336,8 +345,7 @@ function searchMessagesWithFts(
         COALESCE(reply_m.group_nickname, reply_m.account_name, reply_m.platform_id) as replyToSenderName
       FROM message msg
       JOIN member m ON msg.sender_id = m.id
-      LEFT JOIN message reply_msg ON msg.reply_to_message_id = reply_msg.platform_message_id
-      LEFT JOIN member reply_m ON reply_msg.sender_id = reply_m.id
+      ${REPLY_LATEST_JOIN}
       WHERE msg.id IN (SELECT rowid FROM message_fts WHERE content MATCH ?)
       ${timeCondition}
       ${senderCondition}
@@ -406,8 +414,7 @@ export function searchMessagesWithLike(
       COALESCE(reply_m.group_nickname, reply_m.account_name, reply_m.platform_id) as replyToSenderName
     FROM message msg
     JOIN member m ON msg.sender_id = m.id
-    LEFT JOIN message reply_msg ON msg.reply_to_message_id = reply_msg.platform_message_id
-    LEFT JOIN member reply_m ON reply_msg.sender_id = reply_m.id
+    ${REPLY_LATEST_JOIN}
     WHERE ${keywordCondition}
     ${timeCondition}
     ${senderCondition}
@@ -515,8 +522,7 @@ export function getMessageContext(
       COALESCE(reply_m.group_nickname, reply_m.account_name, reply_m.platform_id) as replyToSenderName
     FROM message msg
     JOIN member m ON msg.sender_id = m.id
-    LEFT JOIN message reply_msg ON msg.reply_to_message_id = reply_msg.platform_message_id
-    LEFT JOIN member reply_m ON reply_msg.sender_id = reply_m.id
+    ${REPLY_LATEST_JOIN}
     WHERE msg.id IN (${placeholders})
     ORDER BY msg.id ASC
   `
@@ -625,8 +631,7 @@ export function getSearchMessageContext(
       COALESCE(reply_m.group_nickname, reply_m.account_name, reply_m.platform_id) as replyToSenderName
     FROM message msg
     JOIN member m ON msg.sender_id = m.id
-    LEFT JOIN message reply_msg ON msg.reply_to_message_id = reply_msg.platform_message_id
-    LEFT JOIN member reply_m ON reply_msg.sender_id = reply_m.id
+    ${REPLY_LATEST_JOIN}
     WHERE msg.id IN (${placeholders})
     ORDER BY msg.ts ASC, msg.id ASC
   `
@@ -684,8 +689,7 @@ export function getMessagesBefore(
       COALESCE(reply_m.group_nickname, reply_m.account_name, reply_m.platform_id) as replyToSenderName
     FROM message msg
     JOIN member m ON msg.sender_id = m.id
-    LEFT JOIN message reply_msg ON msg.reply_to_message_id = reply_msg.platform_message_id
-    LEFT JOIN member reply_m ON reply_msg.sender_id = reply_m.id
+    ${REPLY_LATEST_JOIN}
     WHERE msg.id < ?
     ${timeCondition}
     ${keywordCondition}
@@ -757,8 +761,7 @@ export function getMessagesAfter(
       COALESCE(reply_m.group_nickname, reply_m.account_name, reply_m.platform_id) as replyToSenderName
     FROM message msg
     JOIN member m ON msg.sender_id = m.id
-    LEFT JOIN message reply_msg ON msg.reply_to_message_id = reply_msg.platform_message_id
-    LEFT JOIN member reply_m ON reply_msg.sender_id = reply_m.id
+    ${REPLY_LATEST_JOIN}
     WHERE msg.id > ?
     ${timeCondition}
     ${keywordCondition}
@@ -778,6 +781,32 @@ export function getMessagesAfter(
     messages: resultRows.map(sanitizeMessageRow),
     hasMore,
   }
+}
+
+/**
+ * 通过平台消息 ID 获取最新一条对应的内部消息 ID
+ * 用于回复消息跳转，避免同一 platform_message_id 命中多条拆分消息
+ */
+export function getMessageIdByPlatformMessageId(sessionId: string, platformMessageId: string): number | null {
+  const normalizedId = platformMessageId.trim()
+  if (!normalizedId) return null
+
+  const db = openDatabase(sessionId)
+  if (!db) return null
+
+  const row = db
+    .prepare(
+      `
+      SELECT id
+      FROM message
+      WHERE platform_message_id = ?
+      ORDER BY id DESC
+      LIMIT 1
+      `
+    )
+    .get(normalizedId) as { id: number } | undefined
+
+  return row ? Number(row.id) : null
 }
 
 /**
@@ -858,8 +887,7 @@ export function getConversationBetween(
       COALESCE(reply_m.group_nickname, reply_m.account_name, reply_m.platform_id) as replyToSenderName
     FROM message msg
     JOIN member m ON msg.sender_id = m.id
-    LEFT JOIN message reply_msg ON msg.reply_to_message_id = reply_msg.platform_message_id
-    LEFT JOIN member reply_m ON reply_msg.sender_id = reply_m.id
+    ${REPLY_LATEST_JOIN}
     WHERE msg.sender_id IN (?, ?)
     ${timeCondition}
     AND msg.content IS NOT NULL AND msg.content != ''

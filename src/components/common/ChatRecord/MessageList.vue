@@ -116,12 +116,23 @@ function buildFilterParams(query: ChatRecordQuery) {
 
 // 映射消息类型（补充缺失字段）
 function mapMessages(messages: any[]): ChatRecordMessage[] {
-  return messages.map((m) => ({
-    ...m,
-    replyToMessageId: m.replyToMessageId ?? null,
-    replyToContent: m.replyToContent ?? null,
-    replyToSenderName: m.replyToSenderName ?? null,
-  })) as ChatRecordMessage[]
+  const seenMessageIds = new Set<number>()
+
+  return messages
+    .filter((m) => {
+      const messageId = Number(m?.id)
+      if (!Number.isFinite(messageId) || seenMessageIds.has(messageId)) {
+        return false
+      }
+      seenMessageIds.add(messageId)
+      return true
+    })
+    .map((m) => ({
+      ...m,
+      replyToMessageId: m.replyToMessageId ?? null,
+      replyToContent: m.replyToContent ?? null,
+      replyToSenderName: m.replyToSenderName ?? null,
+    })) as ChatRecordMessage[]
 }
 
 // 记录上一次消息数量（用于判断是扩展还是替换）
@@ -372,6 +383,20 @@ function scrollToMessage(messageId: number) {
   }
 }
 
+async function handleJumpToReply(platformMessageId: string) {
+  const sessionId = sessionStore.currentSessionId
+  if (!sessionId || !platformMessageId) return
+
+  try {
+    const messageId = await window.aiApi.getMessageIdByPlatformMessageId(sessionId, platformMessageId)
+    if (messageId) {
+      emit('jump-to-message', messageId)
+    }
+  } catch (error) {
+    console.error('跳转引用消息失败:', error)
+  }
+}
+
 // 处理滚动事件（检测边界）- 仅处理加载更多逻辑
 function handleScroll() {
   const container = scrollContainerRef.value
@@ -532,6 +557,17 @@ onUnmounted(() => {
   }
 })
 
+watch(
+  messages,
+  async () => {
+    await nextTick()
+    requestAnimationFrame(() => {
+      virtualizer.value.measure()
+    })
+  },
+  { deep: true }
+)
+
 // 暴露方法
 defineExpose({
   refresh: loadInitialMessages,
@@ -598,6 +634,7 @@ defineExpose({
             :highlight-keywords="query.highlightKeywords"
             :is-filtered="isFiltered"
             @view-context="(id) => emit('jump-to-message', id)"
+            @jump-to-reply="handleJumpToReply"
           />
         </div>
       </div>

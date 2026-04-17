@@ -330,6 +330,7 @@ interface AiApi {
     messageIds: number | number[],
     contextSize?: number
   ) => Promise<SearchMessageResult[]>
+  getMessageIdByPlatformMessageId: (sessionId: string, platformMessageId: string) => Promise<number | null>
   getRecentMessages: (
     sessionId: string,
     filter?: TimeFilter,

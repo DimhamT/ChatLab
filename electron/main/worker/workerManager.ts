@@ -652,6 +652,16 @@ export async function getMessagesAfter(
   return sendToWorker('getMessagesAfter', { sessionId, afterId, limit, filter, senderId, keywords })
 }
 
+/**
+ * 通过平台消息 ID 获取最新一条内部消息 ID（用于回复消息跳转）
+ */
+export async function getMessageIdByPlatformMessageId(
+  sessionId: string,
+  platformMessageId: string
+): Promise<number | null> {
+  return sendToWorker('getMessageIdByPlatformMessageId', { sessionId, platformMessageId })
+}
+
 // ==================== SQL 实验室 API ====================
 
 export interface SQLResult {

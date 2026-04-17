@@ -6,6 +6,17 @@
 import { openReadonlyDatabase } from './core'
 import type { FilterMessage, ContextBlock, FilterResultWithPagination } from './types'
 
+const REPLY_LATEST_JOIN = `
+  LEFT JOIN (
+    SELECT platform_message_id, MAX(id) AS latest_id
+    FROM message
+    WHERE platform_message_id IS NOT NULL
+    GROUP BY platform_message_id
+  ) reply_latest ON msg.reply_to_message_id = reply_latest.platform_message_id
+  LEFT JOIN message reply_msg ON reply_msg.id = reply_latest.latest_id
+  LEFT JOIN member reply_m ON reply_msg.sender_id = reply_m.id
+`
+
 /**
  * 按条件筛选消息并扩充上下文（支持分页）
  *
@@ -163,8 +174,7 @@ export function filterMessagesWithContext(
           COALESCE(reply_m.group_nickname, reply_m.account_name, reply_m.platform_id) as replyToSenderName
         FROM message msg
         JOIN member m ON msg.sender_id = m.id
-        LEFT JOIN message reply_msg ON msg.reply_to_message_id = reply_msg.platform_message_id
-        LEFT JOIN member reply_m ON reply_msg.sender_id = reply_m.id
+        ${REPLY_LATEST_JOIN}
         ${timeFilter ? 'WHERE msg.ts >= ? AND msg.ts <= ?' : ''}
         ORDER BY msg.ts ASC, msg.id ASC
         LIMIT ? OFFSET ?
@@ -355,8 +365,7 @@ export function getMultipleSessionsMessages(
       FROM message_context mc
       JOIN message msg ON msg.id = mc.message_id
       JOIN member m ON msg.sender_id = m.id
-      LEFT JOIN message reply_msg ON msg.reply_to_message_id = reply_msg.platform_message_id
-      LEFT JOIN member reply_m ON reply_msg.sender_id = reply_m.id
+      ${REPLY_LATEST_JOIN}
       WHERE mc.session_id = ?
       ORDER BY msg.ts ASC
     `

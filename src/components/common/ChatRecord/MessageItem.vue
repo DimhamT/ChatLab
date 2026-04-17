@@ -28,6 +28,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'view-context', messageId: number): void
+  (e: 'jump-to-reply', platformMessageId: string): void
 }>()
 
 const layoutStore = useLayoutStore()
@@ -128,6 +129,7 @@ const isVoice = computed(() => props.message.type === 2)
 const isVideo = computed(() => props.message.type === 3)
 const isFile = computed(() => props.message.type === 4)
 const isEmoji = computed(() => props.message.type === 5)
+const isReply = computed(() => props.message.type === 25)
 const isSystemMessage = computed(() => props.message.type === 80)
 const isRecall = computed(() => props.message.type === 81)
 
@@ -156,6 +158,48 @@ function resolveMarkedMediaUrl(content: string | null | undefined, marker: strin
   return resolveAssetUrl(normalized)
 }
 
+function normalizeReplyPreview(content: string | null | undefined): string {
+  const rawContent = (content || '').trim()
+  if (!rawContent) return ''
+
+  const assetMatch = rawContent.match(/assets\/[^\s]+\.(\w+)/i)
+  if (!assetMatch) return rawContent
+
+  const extension = assetMatch[1].toLowerCase()
+
+  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'heic'].includes(extension)) {
+    return '[图片]'
+  }
+  if (['mp4', 'mov', 'avi', 'mkv', 'webm', 'm4v'].includes(extension)) {
+    return '[视频]'
+  }
+  if (['mp3', 'wav', 'ogg', 'm4a', 'aac', 'opus', 'flac'].includes(extension)) {
+    return '[语音]'
+  }
+
+  return '[文件]'
+}
+
+function resolveReplyEmojiUrls(content: string | null | undefined): string[] | null {
+  const rawContent = (content || '').trim()
+  if (!rawContent || !rawContent.startsWith('[')) return null
+
+  try {
+    const parsed = JSON.parse(rawContent)
+    if (!Array.isArray(parsed) || parsed.length === 0) return null
+
+    const urls = parsed
+      .filter((item): item is string => typeof item === 'string')
+      .filter((item) => item.startsWith('assets/emoji/') || item.startsWith('/assets/emoji/'))
+      .map((item) => resolveAssetUrl(item))
+      .filter((item): item is string => !!item)
+
+    return urls.length > 0 ? urls : null
+  } catch {
+    return null
+  }
+}
+
 const voiceUrl = computed(() => {
   if (!isVoice.value) return null
   return resolveMarkedMediaUrl(props.message.content, '[语音]')
@@ -164,6 +208,11 @@ const voiceUrl = computed(() => {
 const videoUrl = computed(() => {
   if (!isVideo.value) return null
   return resolveMarkedMediaUrl(props.message.content, '[视频]')
+})
+
+const replyBodyEmojiUrls = computed(() => {
+  if (!isReply.value) return null
+  return resolveReplyEmojiUrls(props.message.content)
 })
 
 function extractFileName(pathOrName: string) {
@@ -414,14 +463,29 @@ async function openFile(path: string | null | undefined) {
             <!-- 回复引用样式 -->
             <div
               v-if="message.replyToMessageId"
-              class="mb-2 border-l-2 border-gray-300 dark:border-gray-600 pl-2 text-xs text-gray-500 dark:text-gray-400"
+              class="mb-2 block max-w-full overflow-hidden rounded-md border-l-2 border-gray-300 bg-gray-50/80 px-2 py-1.5 text-xs text-gray-500 transition-colors hover:border-pink-400 hover:text-gray-700 dark:border-gray-600 dark:bg-gray-800/70 dark:text-gray-400 dark:hover:border-pink-500 dark:hover:text-gray-200"
+              :class="message.replyToMessageId ? 'cursor-pointer' : ''"
+              @click.stop="message.replyToMessageId && emit('jump-to-reply', message.replyToMessageId)"
             >
-              <span class="font-medium">{{ t('records.messageItem.replyTo') }}</span>
-              <span v-if="message.replyToSenderName" class="ml-1 text-gray-600 dark:text-gray-300">
-                {{ message.replyToSenderName }}
-              </span>
-              <p v-if="message.replyToContent" class="mt-0.5 line-clamp-2 italic">
-                {{ message.replyToContent }}
+              <div class="flex min-w-0 items-center gap-1 leading-4">
+                <span class="shrink-0 font-medium">{{ t('records.messageItem.replyTo') }}</span>
+                <span v-if="message.replyToSenderName" class="min-w-0 truncate text-gray-600 dark:text-gray-300">
+                  {{ message.replyToSenderName }}
+                </span>
+              </div>
+              <div
+                v-if="message.replyToContent && resolveReplyEmojiUrls(message.replyToContent)"
+                class="mt-1 flex flex-wrap items-center gap-1"
+              >
+                <img
+                  v-for="(url, index) in resolveReplyEmojiUrls(message.replyToContent)"
+                  :key="`${url}-${index}`"
+                  :src="url"
+                  class="h-5 w-5 shrink-0 object-contain"
+                />
+              </div>
+              <p v-else-if="message.replyToContent" class="mt-1 line-clamp-2 break-all leading-4 italic">
+                {{ normalizeReplyPreview(message.replyToContent) }}
               </p>
             </div>
 
@@ -514,6 +578,16 @@ async function openFile(path: string | null | undefined) {
                   />
                 </span>
               </template>
+            </div>
+
+            <!-- 引用消息正文中的 emoji 数组 -->
+            <div v-else-if="replyBodyEmojiUrls" class="flex flex-wrap gap-1 items-center">
+              <img
+                v-for="(url, index) in replyBodyEmojiUrls"
+                :key="`${url}-${index}`"
+                :src="url"
+                class="h-6 w-6 shrink-0 object-contain"
+              />
             </div>
 
             <!-- 文本消息 -->

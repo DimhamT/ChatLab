@@ -128,6 +128,8 @@ const isVoice = computed(() => props.message.type === 2)
 const isVideo = computed(() => props.message.type === 3)
 const isFile = computed(() => props.message.type === 4)
 const isEmoji = computed(() => props.message.type === 5)
+const isSystemMessage = computed(() => props.message.type === 80)
+const isRecall = computed(() => props.message.type === 81)
 
 function resolveAssetUrl(content: string | null | undefined): string | null {
   const rawContent = (content || '').trim()
@@ -317,6 +319,28 @@ function highlightContent(content: string): string {
   )
 }
 
+const recallContent = computed(() => {
+  if (!isRecall.value) return ''
+  const rawContent = props.message.content || ''
+  const normalized = rawContent.replace(/^\[系统\]\s*/i, '').trim()
+  if (!normalized) return '撤回了一条消息'
+
+  const senderId = props.message.senderPlatformId?.trim()
+  const senderLabel = displayName.value || props.message.senderName || senderId
+
+  if (senderId && senderLabel) {
+    return normalized.replaceAll(senderId, senderLabel)
+  }
+
+  return normalized
+})
+
+const systemMessageContent = computed(() => {
+  if (!isSystemMessage.value) return ''
+  const rawContent = props.message.content || ''
+  return rawContent.replace(/^\[系统\]\s*/i, '').trim() || '系统消息'
+})
+
 // 打开大图预览
 function openImage(url: string) {
   layoutStore.openImagePreviewModal(url)
@@ -342,8 +366,17 @@ async function openFile(path: string | null | undefined) {
       'bg-yellow-50/50 dark:bg-yellow-900/10': isTarget,
     }"
   >
+    <div v-if="isRecall || isSystemMessage" class="flex items-center justify-center">
+      <p
+        class="text-center text-xs text-gray-500 dark:text-gray-400"
+        :class="isTarget ? 'font-medium text-gray-600 dark:text-gray-300' : ''"
+      >
+        {{ isRecall ? recallContent : systemMessageContent }}
+      </p>
+    </div>
+
     <!-- Owner 消息显示在右侧 -->
-    <div class="flex gap-3" :class="isOwner ? 'flex-row-reverse' : ''">
+    <div v-else class="flex gap-3" :class="isOwner ? 'flex-row-reverse' : ''">
       <!-- 头像 -->
       <div
         class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-medium text-white overflow-hidden"

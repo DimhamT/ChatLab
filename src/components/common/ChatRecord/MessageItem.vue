@@ -9,6 +9,7 @@ import { useI18n } from 'vue-i18n'
 
 import type { ChatRecordMessage } from './types'
 import VideoThumbnail from './VideoThumbnail.vue'
+import VoiceWaveform from './VoiceWaveform.vue'
 import { useLayoutStore } from '@/stores/layout'
 import { useSessionStore } from '@/stores/session'
 
@@ -76,7 +77,7 @@ const nameColor = computed(() => currentColor.value.name)
 
 // 气泡颜色（Owner 使用绿色，其他人使用灰色；媒体消息使用透明背景）
 const bubbleColor = computed(() => {
-  if (isImage.value || isVideo.value || isEmoji.value) return ''
+  if (isImage.value || isVoice.value || isVideo.value || isEmoji.value) return ''
   return isOwner.value ? 'bg-green-100 dark:bg-green-900/40' : 'bg-gray-100 dark:bg-gray-800'
 })
 
@@ -210,10 +211,6 @@ function openImage(url: string) {
   layoutStore.openImagePreviewModal(url)
 }
 
-function openAudio(url: string) {
-  layoutStore.openAudioPreviewModal(url)
-}
-
 function openVideo(url: string) {
   layoutStore.openVideoPreviewModal(url)
 }
@@ -258,7 +255,7 @@ function openVideo(url: string) {
             class="relative inline-block rounded-lg transition-shadow"
             :class="[
               bubbleColor,
-              isImage || isVideo || isEmoji ? '' : 'px-3 py-2',
+              isImage || isVoice || isVideo || isEmoji ? '' : 'px-3 py-2',
               isTarget ? 'ring-2 ring-yellow-400 dark:ring-yellow-500' : '',
             ]"
           >
@@ -285,20 +282,8 @@ function openVideo(url: string) {
             />
 
             <!-- 语音消息 -->
-            <div v-else-if="isVoice" class="w-[min(22rem,70vw)] space-y-2">
-              <div class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
-                <UIcon name="i-heroicons-speaker-wave" class="h-4 w-4 shrink-0" />
-                <span class="font-medium">{{ t('common.messageType.voice') }}</span>
-              </div>
-              <audio v-if="voiceUrl" :src="voiceUrl" controls preload="metadata" class="w-full max-w-full" />
-              <button
-                v-if="voiceUrl"
-                class="inline-flex items-center gap-1 text-xs text-pink-600 transition-colors hover:text-pink-500 dark:text-pink-400 dark:hover:text-pink-300"
-                @click.stop.prevent="openAudio(voiceUrl)"
-              >
-                <UIcon name="i-heroicons-arrows-pointing-out" class="h-3.5 w-3.5" />
-                <span>查看语音</span>
-              </button>
+            <div v-else-if="isVoice" class="w-[min(22rem,70vw)]">
+              <VoiceWaveform v-if="voiceUrl" :src="voiceUrl" :is-owner="isOwner" />
               <p v-else class="text-sm text-gray-500 dark:text-gray-400">{{ message.content || '[语音]' }}</p>
             </div>
 

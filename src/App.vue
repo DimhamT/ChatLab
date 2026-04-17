@@ -85,6 +85,7 @@ onMounted(async () => {
     <ImagePreviewModal
       :open="layoutStore.showImagePreviewModal"
       :image-src="layoutStore.imagePreviewSrc"
+      :media-kind="layoutStore.imagePreviewKind"
       @update:open="(v) => (v ? null : layoutStore.closeImagePreviewModal())"
     />
     <!-- 全局聊天记录查看器 -->

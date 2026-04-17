@@ -1,5 +1,7 @@
 import { app, shell, BrowserWindow, protocol, nativeTheme } from 'electron'
-import { join } from 'path'
+import { createReadStream } from 'node:fs'
+import { stat } from 'node:fs/promises'
+import { extname, join } from 'path'
 import { optimizer, is, platform } from '@electron-toolkit/utils'
 import { checkUpdate } from './update'
 import mainIpcMain, { cleanup } from './ipcMain'
@@ -18,6 +20,55 @@ import { initLocale } from './i18n'
 type AppWithQuitFlag = typeof app & { isQuiting?: boolean }
 // 统一通过扩展类型访问退出标记，避免使用 @ts-ignore。
 const appWithQuitFlag = app as AppWithQuitFlag
+
+const ASSET_MIME_TYPES: Record<string, string> = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.bmp': 'image/bmp',
+  '.svg': 'image/svg+xml',
+  '.mp4': 'video/mp4',
+  '.mov': 'video/quicktime',
+  '.m4v': 'video/x-m4v',
+  '.webm': 'video/webm',
+  '.ogg': 'video/ogg',
+  '.mp3': 'audio/mpeg',
+  '.m4a': 'audio/mp4',
+  '.wav': 'audio/wav',
+  '.aac': 'audio/aac',
+  '.opus': 'audio/opus',
+}
+
+function getAssetContentType(filePath: string) {
+  return ASSET_MIME_TYPES[extname(filePath).toLowerCase()] || 'application/octet-stream'
+}
+
+function parseRangeHeader(rangeHeader: string | null, size: number) {
+  if (!rangeHeader || !rangeHeader.startsWith('bytes=')) return null
+
+  const [startText, endText] = rangeHeader.slice(6).split('-', 2)
+
+  if (!startText && !endText) return null
+
+  let start = startText ? Number.parseInt(startText, 10) : Number.NaN
+  let end = endText ? Number.parseInt(endText, 10) : Number.NaN
+
+  if (Number.isNaN(start)) {
+    const suffixLength = Number.isNaN(end) ? 0 : end
+    if (suffixLength <= 0) return null
+    start = Math.max(size - suffixLength, 0)
+    end = size - 1
+  } else {
+    if (start < 0 || start >= size) return 'invalid'
+    if (Number.isNaN(end) || end >= size) end = size - 1
+  }
+
+  if (end < start) return 'invalid'
+
+  return { start, end }
+}
 
 class MainProcess {
   mainWindow: BrowserWindow | null
@@ -102,8 +153,19 @@ class MainProcess {
 
     // 暂不注册自定义协议，避免触发系统 URL 协议关联提示
 
-    // 应用程序准备好之前注册
-    protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { secure: true, standard: true } }])
+    // 应用程序准备好之前注册，确保本地资源可用于流式媒体加载。
+    protocol.registerSchemesAsPrivileged([
+      { scheme: 'app', privileges: { secure: true, standard: true } },
+      {
+        scheme: 'asset',
+        privileges: {
+          secure: true,
+          standard: true,
+          supportFetchAPI: true,
+          stream: true,
+        },
+      },
+    ])
 
     // 主应用程序事件
     this.mainAppEvents()
@@ -143,7 +205,7 @@ class MainProcess {
   registerAssetProtocol() {
     const assetsDir = getAssetsDir()
 
-    protocol.registerFileProtocol('asset', (request, callback) => {
+    protocol.handle('asset', async (request) => {
       const url = request.url.replace('asset://', '')
       const filePath = join(assetsDir, decodeURIComponent(url))
 
@@ -152,11 +214,56 @@ class MainProcess {
       // 安全检查：确保文件在 assetsDir 内
       if (!filePath.startsWith(assetsDir)) {
         console.warn('[Asset Protocol] Blocked unsafe path:', filePath)
-        callback({ error: -6 })
-        return
+        return new Response('Forbidden', { status: 403 })
       }
 
-      callback(filePath)
+      try {
+        const fileStat = await stat(filePath)
+        const size = fileStat.size
+        const contentType = getAssetContentType(filePath)
+        const range = parseRangeHeader(request.headers.get('range'), size)
+
+        const headers = new Headers({
+          'accept-ranges': 'bytes',
+          'content-type': contentType,
+          'cache-control': 'public, max-age=31536000, immutable',
+        })
+
+        if (range === 'invalid') {
+          headers.set('content-range', `bytes */${size}`)
+          return new Response(null, { status: 416, headers })
+        }
+
+        if (range) {
+          const { start, end } = range
+          const chunkSize = end - start + 1
+          headers.set('content-length', String(chunkSize))
+          headers.set('content-range', `bytes ${start}-${end}/${size}`)
+
+          if (request.method === 'HEAD') {
+            return new Response(null, { status: 206, headers })
+          }
+
+          return new Response(createReadStream(filePath, { start, end }) as unknown as BodyInit, {
+            status: 206,
+            headers,
+          })
+        }
+
+        headers.set('content-length', String(size))
+
+        if (request.method === 'HEAD') {
+          return new Response(null, { status: 200, headers })
+        }
+
+        return new Response(createReadStream(filePath) as unknown as BodyInit, {
+          status: 200,
+          headers,
+        })
+      } catch (error) {
+        console.error('[Asset Protocol] Failed to load asset:', filePath, error)
+        return new Response('Not Found', { status: 404 })
+      }
     })
 
     console.log('[Main] Asset protocol registered for:', assetsDir)

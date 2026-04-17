@@ -13,6 +13,7 @@ export const useLayoutStore = defineStore(
     const screenCaptureImage = ref<string | null>(null)
     const showImagePreviewModal = ref(false)
     const imagePreviewSrc = ref<string | null>(null)
+    const imagePreviewKind = ref<'image' | 'audio' | 'video'>('image')
     const showChatRecordDrawer = ref(false)
     const chatRecordQuery = ref<ChatRecordQuery | null>(null)
 
@@ -49,9 +50,31 @@ export const useLayoutStore = defineStore(
     /**
      * 打开图片预览弹窗
      */
-    function openImagePreviewModal(imageSrc: string) {
-      imagePreviewSrc.value = imageSrc
+    function openMediaPreviewModal(mediaSrc: string, kind: 'image' | 'audio' | 'video' = 'image') {
+      imagePreviewKind.value = kind
+      imagePreviewSrc.value = mediaSrc
       showImagePreviewModal.value = true
+    }
+
+    /**
+     * 打开图片预览弹窗
+     */
+    function openImagePreviewModal(imageSrc: string) {
+      openMediaPreviewModal(imageSrc, 'image')
+    }
+
+    /**
+     * 打开音频预览弹窗
+     */
+    function openAudioPreviewModal(audioSrc: string) {
+      openMediaPreviewModal(audioSrc, 'audio')
+    }
+
+    /**
+     * 打开视频预览弹窗
+     */
+    function openVideoPreviewModal(videoSrc: string) {
+      openMediaPreviewModal(videoSrc, 'video')
     }
 
     /**
@@ -61,6 +84,7 @@ export const useLayoutStore = defineStore(
       showImagePreviewModal.value = false
       setTimeout(() => {
         imagePreviewSrc.value = null
+        imagePreviewKind.value = 'image'
       }, 300)
     }
 
@@ -93,6 +117,7 @@ export const useLayoutStore = defineStore(
       screenCaptureImage,
       showImagePreviewModal,
       imagePreviewSrc,
+      imagePreviewKind,
       showChatRecordDrawer,
       chatRecordQuery,
       screenshotMobileAdapt,
@@ -100,7 +125,10 @@ export const useLayoutStore = defineStore(
       toggleToolsPanelLock,
       openScreenCaptureModal,
       closeScreenCaptureModal,
+      openMediaPreviewModal,
       openImagePreviewModal,
+      openAudioPreviewModal,
+      openVideoPreviewModal,
       closeImagePreviewModal,
       openChatRecordDrawer,
       closeChatRecordDrawer,

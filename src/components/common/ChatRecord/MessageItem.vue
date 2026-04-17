@@ -8,6 +8,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { ChatRecordMessage } from './types'
+import VideoThumbnail from './VideoThumbnail.vue'
 import { useLayoutStore } from '@/stores/layout'
 import { useSessionStore } from '@/stores/session'
 
@@ -73,9 +74,9 @@ const currentColor = computed(() => colorPalette[colorIndex.value])
 const avatarColor = computed(() => currentColor.value.avatar)
 const nameColor = computed(() => currentColor.value.name)
 
-// 气泡颜色（Owner 使用绿色，其他人使用灰色；图片消息使用透明背景）
+// 气泡颜色（Owner 使用绿色，其他人使用灰色；媒体消息使用透明背景）
 const bubbleColor = computed(() => {
-  if (isImage.value || isEmoji.value) return ''
+  if (isImage.value || isVideo.value || isEmoji.value) return ''
   return isOwner.value ? 'bg-green-100 dark:bg-green-900/40' : 'bg-gray-100 dark:bg-gray-800'
 })
 
@@ -122,20 +123,43 @@ const avatarLetter = computed(() => {
 
 // 判断消息类型
 const isImage = computed(() => props.message.type === 1)
+const isVoice = computed(() => props.message.type === 2)
+const isVideo = computed(() => props.message.type === 3)
 const isEmoji = computed(() => props.message.type === 5)
+
+function resolveAssetUrl(content: string | null | undefined): string | null {
+  const rawContent = (content || '').trim()
+  if (!rawContent) return null
+  if (rawContent.startsWith('assets/') || rawContent.startsWith('/assets/')) {
+    return 'asset://' + rawContent.replace(/^\/?assets\//, '')
+  }
+  return rawContent
+}
 
 // 获取图片URL
 const imageUrl = computed(() => {
   if (!isImage.value) return null
-  const content = props.message.content || ''
-  console.log('[MessageItem] Image content:', content)
-  if (content.startsWith('assets/') || content.startsWith('/assets/')) {
-    const url = 'asset://' + content.replace(/^\/?assets\//, '')
-    console.log('[MessageItem] Generated asset URL:', url)
-    return url
-  }
-  console.log('[MessageItem] Using content as-is:', content)
-  return content
+  return resolveAssetUrl(props.message.content)
+})
+
+function resolveMarkedMediaUrl(content: string | null | undefined, marker: string): string | null {
+  const rawContent = (content || '').trim()
+  if (!rawContent) return null
+
+  const normalized = rawContent.startsWith(marker) ? rawContent.slice(marker.length).trim() : rawContent
+  if (!normalized || /^\[[^\]]+\]$/.test(normalized)) return null
+
+  return resolveAssetUrl(normalized)
+}
+
+const voiceUrl = computed(() => {
+  if (!isVoice.value) return null
+  return resolveMarkedMediaUrl(props.message.content, '[语音]')
+})
+
+const videoUrl = computed(() => {
+  if (!isVideo.value) return null
+  return resolveMarkedMediaUrl(props.message.content, '[视频]')
 })
 
 // 解析表情包内容
@@ -185,6 +209,14 @@ function highlightContent(content: string): string {
 function openImage(url: string) {
   layoutStore.openImagePreviewModal(url)
 }
+
+function openAudio(url: string) {
+  layoutStore.openAudioPreviewModal(url)
+}
+
+function openVideo(url: string) {
+  layoutStore.openVideoPreviewModal(url)
+}
 </script>
 
 <template>
@@ -223,8 +255,12 @@ function openImage(url: string) {
         <!-- max-w-[calc(100%-48px)] = 100% - 头像宽度(36px) - gap(12px) -->
         <div class="flex items-start gap-1 max-w-[calc(100%-68px)]" :class="isOwner ? 'flex-row-reverse' : ''">
           <div
-            class="relative inline-block rounded-lg px-3 py-2 transition-shadow"
-            :class="[bubbleColor, isTarget ? 'ring-2 ring-yellow-400 dark:ring-yellow-500' : '']"
+            class="relative inline-block rounded-lg transition-shadow"
+            :class="[
+              bubbleColor,
+              isImage || isVideo || isEmoji ? '' : 'px-3 py-2',
+              isTarget ? 'ring-2 ring-yellow-400 dark:ring-yellow-500' : '',
+            ]"
           >
             <!-- 回复引用样式 -->
             <div
@@ -247,6 +283,47 @@ function openImage(url: string) {
               class="max-w-48 max-h-48 rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
               @click="openImage(imageUrl!)"
             />
+
+            <!-- 语音消息 -->
+            <div v-else-if="isVoice" class="w-[min(22rem,70vw)] space-y-2">
+              <div class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
+                <UIcon name="i-heroicons-speaker-wave" class="h-4 w-4 shrink-0" />
+                <span class="font-medium">{{ t('common.messageType.voice') }}</span>
+              </div>
+              <audio v-if="voiceUrl" :src="voiceUrl" controls preload="metadata" class="w-full max-w-full" />
+              <button
+                v-if="voiceUrl"
+                class="inline-flex items-center gap-1 text-xs text-pink-600 transition-colors hover:text-pink-500 dark:text-pink-400 dark:hover:text-pink-300"
+                @click.stop.prevent="openAudio(voiceUrl)"
+              >
+                <UIcon name="i-heroicons-arrows-pointing-out" class="h-3.5 w-3.5" />
+                <span>查看语音</span>
+              </button>
+              <p v-else class="text-sm text-gray-500 dark:text-gray-400">{{ message.content || '[语音]' }}</p>
+            </div>
+
+            <!-- 视频消息 -->
+            <div v-else-if="isVideo" class="space-y-2">
+              <button
+                v-if="videoUrl"
+                type="button"
+                class="group/video relative block w-fit overflow-hidden rounded-lg"
+                @click.stop.prevent="openVideo(videoUrl)"
+              >
+                <VideoThumbnail :src="videoUrl" />
+                <div class="absolute inset-0 z-[1] bg-black/22 transition-colors group-hover/video:bg-black/28" />
+                <div class="absolute z-[20] flex items-center justify-center" style="inset: 0">
+                  <div
+                    class="flex h-11 w-11 items-center justify-center rounded-full border border-white/25 bg-black/58 text-white shadow-xl backdrop-blur-sm transition-transform group-hover/video:scale-110"
+                  >
+                    <svg class="h-5 w-5 fill-current" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M6 4l15 8-15 8V4z" />
+                    </svg>
+                  </div>
+                </div>
+              </button>
+              <p v-if="!videoUrl" class="text-sm text-gray-500 dark:text-gray-400">{{ message.content || '[视频]' }}</p>
+            </div>
 
             <!-- 表情包消息 -->
             <div v-else-if="isEmoji" class="flex flex-wrap gap-1 items-center">

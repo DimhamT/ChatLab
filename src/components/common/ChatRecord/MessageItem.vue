@@ -133,6 +133,58 @@ const isReply = computed(() => props.message.type === 25)
 const isForward = computed(() => props.message.type === 26)
 const isSystemMessage = computed(() => props.message.type === 80)
 const isRecall = computed(() => props.message.type === 81)
+const isCall = computed(() => props.message.type === 23)
+
+interface CallInfo {
+  callType: 'video' | 'voice' | 'missed' | 'rejected' | 'unknown'
+  label: string
+  duration?: string
+}
+
+const callInfo = computed<CallInfo | null>(() => {
+  if (!isCall.value) return null
+
+  const rawContent = props.message.content || ''
+  let items: string[] = []
+
+  try {
+    if (rawContent.startsWith('[')) {
+      items = JSON.parse(rawContent)
+    }
+  } catch {
+    items = [rawContent]
+  }
+
+  if (!items || items.length === 0) {
+    return { callType: 'unknown', label: '通话' }
+  }
+
+  const first = items[0] || ''
+  const duration = items[1]
+
+  if (first === '视频通话' || first === '' || /^\d{1,2}:\d{2}:\d{2}$/.test(first)) {
+    return { callType: 'video', label: '视频通话', duration: duration || first }
+  }
+  if (first === '语音通话') {
+    return { callType: 'voice', label: '语音通话', duration }
+  }
+  if (first === '对方未接听') {
+    return { callType: 'missed', label: '对方未接听' }
+  }
+  if (first === '对方已拒绝') {
+    return { callType: 'rejected', label: '对方已拒绝' }
+  }
+
+  return { callType: 'unknown', label: first || '通话' }
+})
+
+const callDisplayContent = computed(() => {
+  if (!callInfo.value) return ''
+  if (callInfo.value.duration) {
+    return callInfo.value.duration
+  }
+  return callInfo.value.label
+})
 
 function resolveAssetUrl(content: string | null | undefined): string | null {
   const rawContent = (content || '').trim()
@@ -519,7 +571,7 @@ async function openFile(path: string | null | undefined) {
             class="relative inline-block rounded-lg transition-shadow"
             :class="[
               bubbleColor,
-              isImage || isVoice || isVideo || isFile || isEmoji ? '' : 'px-3 py-2',
+              isImage || isVoice || isVideo || isFile || isEmoji || isCall ? '' : 'px-3 py-2',
               isTarget ? 'ring-2 ring-yellow-400 dark:ring-yellow-500' : '',
             ]"
           >
@@ -683,6 +735,20 @@ async function openFile(path: string | null | undefined) {
                 :src="url"
                 class="h-6 w-6 shrink-0 object-contain"
               />
+            </div>
+
+            <!-- 通话消息 -->
+            <div v-else-if="isCall" class="flex items-center gap-2 px-1">
+              <UIcon
+                :name="callInfo?.callType === 'video' ? 'i-heroicons-video-camera' : 'i-heroicons-phone'"
+                class="h-4 w-4 shrink-0"
+                :class="
+                  callInfo?.callType === 'missed' || callInfo?.callType === 'rejected'
+                    ? 'text-red-400'
+                    : 'text-gray-400'
+                "
+              />
+              <span class="text-sm text-gray-600 dark:text-gray-300">{{ callDisplayContent }}</span>
             </div>
 
             <!-- 文本消息 -->

@@ -78,7 +78,7 @@ const nameColor = computed(() => currentColor.value.name)
 
 // 气泡颜色（Owner 使用绿色，其他人使用灰色；媒体消息使用透明背景）
 const bubbleColor = computed(() => {
-  if (isImage.value || isVoice.value || isVideo.value || isFile.value || isForward.value) return ''
+  if (isImage.value || isVoice.value || isVideo.value || isFile.value || isForward.value || isCard.value) return ''
   return isOwner.value ? 'bg-green-100 dark:bg-green-900/40' : 'bg-gray-100 dark:bg-gray-800'
 })
 
@@ -134,6 +134,7 @@ const isForward = computed(() => props.message.type === 26)
 const isSystemMessage = computed(() => props.message.type === 80)
 const isRecall = computed(() => props.message.type === 81)
 const isCall = computed(() => props.message.type === 23)
+const isCard = computed(() => props.message.type == 7)
 
 interface CallInfo {
   callType: 'video' | 'voice' | 'missed' | 'rejected' | 'unknown'
@@ -184,6 +185,63 @@ const callDisplayContent = computed(() => {
     return callInfo.value.duration
   }
   return callInfo.value.label
+})
+
+interface CardInfo {
+  type: string
+  title: string
+  thumbUrl?: string
+  sourceUrl?: string
+}
+
+const cardInfo = computed<CardInfo | null>(() => {
+  if (!isCard.value) return null
+
+  const raw = props.message.content || ''
+
+  // Try regex first on raw string to extract available fields
+  const descMatch = raw.match(/"desc"\s*:\s*"([^"]*)"/)
+  const promptMatch = raw.match(/"prompt"\s*:\s*"([^"]*)"/)
+  const titleMatch = raw.match(/"title"\s*:\s*"([^"]*)"/)
+  const thumbMatch = raw.match(/"thumbUrl"\s*:\s*"([^"]*)"/) || raw.match(/"preview"\s*:\s*"([^"]*)"/)
+
+  // If we found at least desc or prompt/title, return what we have
+  if (descMatch || promptMatch || titleMatch) {
+    return {
+      type: descMatch?.[1] || '',
+      title: promptMatch?.[1]?.replace(/^\[分享\]\s*/, '') || titleMatch?.[1] || descMatch?.[1] || '卡片消息',
+      thumbUrl: thumbMatch?.[1] || '',
+      sourceUrl: '',
+    }
+  }
+
+  // Try JSON parsing
+  try {
+    let parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
+    if (parsed.content && typeof parsed.content === 'string') {
+      parsed = JSON.parse(parsed.content)
+    }
+
+    const desc = parsed.desc || ''
+    const prompt = parsed.prompt || ''
+    const title = prompt.replace(/^\[分享\]\s*/, '').trim()
+
+    const meta = parsed.meta || {}
+    let news = meta.news || {}
+    if (Array.isArray(news)) {
+      news = news[0] || {}
+    }
+    const thumbUrl = news.thumbUrl || news.url || parsed.thumbUrl || ''
+
+    return {
+      type: desc,
+      title: title || desc,
+      thumbUrl,
+      sourceUrl: '',
+    }
+  } catch {
+    return null
+  }
 })
 
 function resolveAssetUrl(content: string | null | undefined): string | null {
@@ -749,6 +807,28 @@ async function openFile(path: string | null | undefined) {
                 "
               />
               <span class="text-sm text-gray-600 dark:text-gray-300">{{ callDisplayContent }}</span>
+            </div>
+
+            <!-- 卡片消息 -->
+            <div
+              v-else-if="isCard"
+              class="flex gap-3 rounded-xl border border-gray-200 dark:border-gray-700 p-3 max-w-64 shadow-sm"
+              :class="isOwner ? 'bg-green-50 dark:bg-green-900/20' : ''"
+            >
+              <img
+                v-if="cardInfo?.thumbUrl"
+                :src="cardInfo.thumbUrl"
+                class="h-16 w-16 shrink-0 rounded-lg object-cover"
+              />
+              <div v-if="cardInfo" class="min-w-0 flex flex-col justify-center">
+                <p class="text-sm font-medium text-gray-800 dark:text-gray-100 line-clamp-2">
+                  {{ cardInfo.title }}
+                </p>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {{ cardInfo.type }}
+                </p>
+              </div>
+              <p v-else class="text-sm text-gray-500 dark:text-gray-400">[卡片消息]</p>
             </div>
 
             <!-- 文本消息 -->

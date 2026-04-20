@@ -78,7 +78,7 @@ const nameColor = computed(() => currentColor.value.name)
 
 // 气泡颜色（Owner 使用绿色，其他人使用灰色；媒体消息使用透明背景）
 const bubbleColor = computed(() => {
-  if (isImage.value || isVoice.value || isVideo.value || isFile.value || isEmoji.value || isForward.value) return ''
+  if (isImage.value || isVoice.value || isVideo.value || isFile.value || isForward.value) return ''
   return isOwner.value ? 'bg-green-100 dark:bg-green-900/40' : 'bg-gray-100 dark:bg-gray-800'
 })
 
@@ -571,7 +571,7 @@ async function openFile(path: string | null | undefined) {
             class="relative inline-block rounded-lg transition-shadow"
             :class="[
               bubbleColor,
-              isImage || isVoice || isVideo || isFile || isEmoji || isCall ? '' : 'px-3 py-2',
+              isImage || isVoice || isVideo || isFile || isForward.value || isCall ? '' : 'px-3 py-2',
               isTarget ? 'ring-2 ring-yellow-400 dark:ring-yellow-500' : '',
             ]"
           >

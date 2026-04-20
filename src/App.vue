@@ -6,6 +6,7 @@ import { useI18n } from 'vue-i18n'
 import TitleBar from '@/components/common/TitleBar.vue'
 import Sidebar from '@/components/common/Sidebar.vue'
 import ImagePreviewModal from '@/components/common/ImagePreviewModal.vue'
+import ForwardMessagePreviewModal from '@/components/common/ForwardMessagePreviewModal.vue'
 import ScreenCaptureModal from '@/components/common/ScreenCaptureModal.vue'
 import { ChatRecordDrawer } from '@/components/common/ChatRecord'
 import GlobalTaskBar from '@/components/AIChat/GlobalTaskBar.vue'
@@ -87,6 +88,11 @@ onMounted(async () => {
       :image-src="layoutStore.imagePreviewSrc"
       :media-kind="layoutStore.imagePreviewKind"
       @update:open="(v) => (v ? null : layoutStore.closeImagePreviewModal())"
+    />
+    <ForwardMessagePreviewModal
+      :open="layoutStore.showForwardMessagePreview"
+      :data="layoutStore.forwardMessagePreviewData"
+      @update:open="(v) => (v ? null : layoutStore.closeForwardMessagePreview())"
     />
     <!-- 全局聊天记录查看器 -->
     <ChatRecordDrawer />

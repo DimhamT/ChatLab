@@ -14,6 +14,11 @@ export const useLayoutStore = defineStore(
     const showImagePreviewModal = ref(false)
     const imagePreviewSrc = ref<string | null>(null)
     const imagePreviewKind = ref<'image' | 'audio' | 'video'>('image')
+    const showForwardMessagePreview = ref(false)
+    const forwardMessagePreviewData = ref<{
+      title: string
+      messages: { senderName: string; content: string }[]
+    } | null>(null)
     const showChatRecordDrawer = ref(false)
     const chatRecordQuery = ref<ChatRecordQuery | null>(null)
 
@@ -106,6 +111,24 @@ export const useLayoutStore = defineStore(
       }, 300)
     }
 
+    /**
+     * 打开转发消息预览弹窗
+     */
+    function openForwardMessagePreview(data: { title: string; messages: { senderName: string; content: string }[] }) {
+      forwardMessagePreviewData.value = data
+      showForwardMessagePreview.value = true
+    }
+
+    /**
+     * 关闭转发消息预览弹窗
+     */
+    function closeForwardMessagePreview() {
+      showForwardMessagePreview.value = false
+      setTimeout(() => {
+        forwardMessagePreviewData.value = null
+      }, 300)
+    }
+
     function toggleToolsPanelLock() {
       isToolsPanelLocked.value = !isToolsPanelLocked.value
     }
@@ -118,6 +141,8 @@ export const useLayoutStore = defineStore(
       showImagePreviewModal,
       imagePreviewSrc,
       imagePreviewKind,
+      showForwardMessagePreview,
+      forwardMessagePreviewData,
       showChatRecordDrawer,
       chatRecordQuery,
       screenshotMobileAdapt,
@@ -132,6 +157,8 @@ export const useLayoutStore = defineStore(
       closeImagePreviewModal,
       openChatRecordDrawer,
       closeChatRecordDrawer,
+      openForwardMessagePreview,
+      closeForwardMessagePreview,
     }
   },
   {

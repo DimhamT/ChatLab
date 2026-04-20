@@ -78,7 +78,7 @@ const nameColor = computed(() => currentColor.value.name)
 
 // 气泡颜色（Owner 使用绿色，其他人使用灰色；媒体消息使用透明背景）
 const bubbleColor = computed(() => {
-  if (isImage.value || isVoice.value || isVideo.value || isFile.value || isEmoji.value) return ''
+  if (isImage.value || isVoice.value || isVideo.value || isFile.value || isEmoji.value || isForward.value) return ''
   return isOwner.value ? 'bg-green-100 dark:bg-green-900/40' : 'bg-gray-100 dark:bg-gray-800'
 })
 
@@ -130,6 +130,7 @@ const isVideo = computed(() => props.message.type === 3)
 const isFile = computed(() => props.message.type === 4)
 const isEmoji = computed(() => props.message.type === 5)
 const isReply = computed(() => props.message.type === 25)
+const isForward = computed(() => props.message.type === 26)
 const isSystemMessage = computed(() => props.message.type === 80)
 const isRecall = computed(() => props.message.type === 81)
 
@@ -322,6 +323,68 @@ const filePreviewMeta = computed(() => {
     icon: 'i-heroicons-document',
     cover: 'from-slate-500 to-gray-600',
     description: extension ? `${extension.toUpperCase()} 文件` : '文件',
+  }
+})
+
+// 解析转发消息内容
+interface ForwardedMessagePreview {
+  title: string
+  senderName: string
+  content: string
+  messageCount: number
+  messagePreviews: { senderName: string; content: string }[]
+}
+
+const forwardPreview = computed<ForwardedMessagePreview | null>(() => {
+  if (!isForward.value) return null
+
+  try {
+    const rawContent = props.message.content || ''
+    let xmlContent = rawContent
+
+    try {
+      const parsed = JSON.parse(rawContent)
+      if (parsed?.content) {
+        xmlContent = parsed.content
+      }
+    } catch {
+      // Not JSON, use as-is
+    }
+
+    const titleMatch = xmlContent.match(/<title[^>]*size="34"[^>]*>([^<]+)<\/title>/)
+    const summaryMatch = xmlContent.match(/<summary[^>]*>([^<]+)<\/summary>/)
+    const title = titleMatch?.[1] || '群聊的聊天记录'
+    const summary = summaryMatch?.[1] || ''
+
+    const messageCountMatch = summary.match(/(\d+)/)
+    const messageCount = messageCountMatch ? parseInt(messageCountMatch[1]) : 0
+
+    const messagePreviews: { senderName: string; content: string }[] = []
+    const titleRegex = /<title[^>]*>([^<]+)<\/title>/g
+    let match
+    while ((match = titleRegex.exec(xmlContent)) !== null) {
+      const text = match[1]
+      const fullMatch = match[0]
+      if (fullMatch.includes('size="34"')) continue
+      const colonIndex = text.indexOf(':  ')
+      if (colonIndex !== -1) {
+        const senderName = text.substring(0, colonIndex).trim()
+        const content = text.substring(colonIndex + 2).trim()
+        messagePreviews.push({ senderName, content })
+      } else {
+        messagePreviews.push({ senderName: '', content: text })
+      }
+    }
+
+    return {
+      title,
+      senderName: messagePreviews[0]?.senderName || '',
+      content: messagePreviews[0]?.content || '',
+      messageCount,
+      messagePreviews,
+    }
+  } catch {
+    return null
   }
 })
 
@@ -578,6 +641,38 @@ async function openFile(path: string | null | undefined) {
                   />
                 </span>
               </template>
+            </div>
+
+            <!-- 转发消息 -->
+            <div
+              v-else-if="isForward && forwardPreview"
+              class="w-[min(20rem,72vw)] cursor-pointer rounded-lg border border-gray-200 bg-gray-50 p-3 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800/50 dark:hover:bg-gray-800"
+              @click.stop="
+                layoutStore.openForwardMessagePreview({
+                  title: forwardPreview.title,
+                  messages: forwardPreview.messagePreviews,
+                })
+              "
+            >
+              <div class="flex items-center gap-2 mb-2">
+                <UIcon name="i-heroicons-arrow-right-circle" class="h-4 w-4 text-gray-400" />
+                <span class="text-xs font-medium text-gray-500 dark:text-gray-400">转发消息</span>
+              </div>
+              <p class="text-sm font-medium text-gray-800 dark:text-gray-100 line-clamp-2">
+                {{ forwardPreview.title }}
+              </p>
+              <div v-if="forwardPreview.messagePreviews.length > 0" class="mt-2 space-y-1.5">
+                <div
+                  v-for="(preview, idx) in forwardPreview.messagePreviews.slice(0, 2)"
+                  :key="idx"
+                  class="text-xs text-gray-500 dark:text-gray-400"
+                >
+                  <span class="font-medium">{{ preview.senderName }}</span>
+                  <span class="mx-1">:</span>
+                  <span class="line-clamp-1 inline-block max-w-[80%] align-bottom">{{ preview.content }}</span>
+                </div>
+              </div>
+              <p class="mt-2 text-xs text-gray-400 dark:text-gray-500">{{ forwardPreview.messageCount }} 条转发消息</p>
             </div>
 
             <!-- 引用消息正文中的 emoji 数组 -->
